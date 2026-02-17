@@ -15,7 +15,7 @@ import sys
 # For development: add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from cipsypy.fcidump import read_fcidump
+from CIPSIpy.fcidump import read_fcidump
 
 
 def main():

@@ -247,10 +247,10 @@ With spin: 6 (singlet-adapted)
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `src/cipsypy/fcidump.py` | Read molecular integrals | ✅ Complete |
-| `src/cipsypy/determinants.py` | Slater determinant ops | ⏳ TODO |
-| `src/cipsypy/hamiltonian.py` | Matrix elements | ⏳ TODO |
-| `src/cipsypy/cipsi.py` | Main algorithm | ⏳ TODO |
+| `src/CIPSIpy/fcidump.py` | Read molecular integrals | ✅ Complete |
+| `src/CIPSIpy/determinants.py` | Slater determinant ops | ⏳ TODO |
+| `src/CIPSIpy/hamiltonian.py` | Matrix elements | ⏳ TODO |
+| `src/CIPSIpy/cipsi.py` | Main algorithm | ⏳ TODO |
 | `examples/h2/FCIDUMP` | H2 test data | ✅ Complete |
 | `examples/h2/run_h2.py` | H2 example | ✅ Complete |
 | `tests/test_fcidump.py` | FCIDUMP tests | ✅ Passing |
