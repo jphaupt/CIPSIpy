@@ -1,0 +1,10 @@
+# Requirements for generating H2 example data
+# 
+# Install with: pip install -r requirements.txt
+#
+# These versions are known to work for generating the FCIDUMP file.
+# Other versions may work but could produce slightly different numerical values.
+
+pyscf>=2.3.0
+numpy>=1.24.0
+scipy>=1.11.0
