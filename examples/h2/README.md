@@ -14,7 +14,7 @@ The FCIDUMP file was generated using PySCF with the following parameters:
 
 ### System Parameters
 - **Molecule**: H2 (hydrogen molecule)
-- **Bond length**: 1.4 Bohr (≈ 0.74 Angstrom)
+- **Bond length**: 1.4 Bohr (≈ 0.741 Angstrom)
 - **Basis set**: STO-3G (minimal basis)
 - **Symmetry**: Disabled (C1 symmetry)
 
@@ -97,26 +97,3 @@ The H2 molecule in STO-3G basis is an ideal test case because:
 - Szabo & Ostlund, "Modern Quantum Chemistry" (1996) - contains H2 examples
 - PySCF documentation: https://pyscf.org/
 - FCIDUMP format specification: https://theochem.github.io/horton/2.1.0b3/user_hamiltonian_io.html
-
-## Troubleshooting
-
-### PySCF Installation Issues
-
-If you encounter issues installing PySCF:
-
-```bash
-# Try with pip
-pip install pyscf
-
-# Or with conda
-conda install -c pyscf pyscf
-```
-
-### Numerical Differences
-
-Small numerical differences (< 1e-10) in the FCIDUMP are expected due to:
-- Different BLAS/LAPACK implementations
-- Different compiler optimizations
-- Different PySCF versions
-
-These differences should not affect the test results as long as they're below numerical precision thresholds.
