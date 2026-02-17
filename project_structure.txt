@@ -1,0 +1,70 @@
+================================================================================
+                           SCIpy PROJECT STRUCTURE
+================================================================================
+
+DOCUMENTATION (Start Here!)
+============================
+📄 ANSWER.md          → Direct answer to: "What is the project outline and 
+                         how do we know we have the right answer?"
+📄 QUICKSTART.md      → Get started in 5 minutes
+📄 PROJECT_OUTLINE.md → Complete implementation plan (detailed)
+📄 VALIDATION.md      → How to verify correctness (comprehensive)
+📄 README.md          → Project overview
+
+IMPLEMENTATION (Phase-by-Phase)
+================================
+Phase 1 ✅ COMPLETE:
+  📁 src/scipy/
+    ├── fcidump.py       → Read/write FCIDUMP files (molecular integrals)
+    └── __init__.py      → Package initialization
+  
+  📁 examples/h2/
+    ├── FCIDUMP          → H2 molecule test data (2e⁻, 2 orbitals)
+    └── run_h2.py        → Example script
+  
+  📁 tests/
+    ├── test_fcidump.py  → FCIDUMP tests (ALL PASSING ✅)
+    └── __init__.py
+
+Phase 2 🚧 TODO: Slater Determinants
+  📁 src/scipy/
+    └── determinants.py  → Bit strings, excitations, phases
+
+Phase 3 🚧 TODO: Hamiltonian Matrix
+  📁 src/scipy/
+    └── hamiltonian.py   → Slater-Condon rules, matrix elements
+
+Phase 4-6 🚧 TODO: CIPSI Algorithm
+  📁 src/scipy/
+    ├── selection.py     → PT2 calculation, determinant selection
+    └── cipsi.py         → Main iterative algorithm
+
+Phase 7 🚧 TODO: JAX Optimization
+  - JIT compilation
+  - GPU acceleration
+  - Performance profiling
+
+VALIDATION STRATEGY
+===================
+Level 1: Component Tests ✅
+  └── FCIDUMP reader passes all tests
+
+Level 2: H2 Validation (Primary)
+  Target: E_FCI = -1.137 Hartree
+  Method: Run CIPSI on H2 minimal basis
+  Success: |E_computed - E_target| < 0.001 Ha
+
+Level 3: Literature Comparison
+  Compare with PySCF, Quantum Package
+
+QUICK START
+===========
+1. Install:     pip install -e .
+2. Test:        pytest tests/
+3. Run H2:      python examples/h2/run_h2.py
+4. Read docs:   cat ANSWER.md
+
+CURRENT STATUS: Foundation Complete ✅
+Next Step: Implement determinant operations (Phase 2)
+
+================================================================================
