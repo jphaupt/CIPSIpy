@@ -1,15 +1,13 @@
 """
-Generate FCIDUMP file for H2 molecule using PySCF
+Generate FCIDUMP file for H2 molecule using PySCF for CIPSIpy
 
 This script creates the FCIDUMP file used for testing and examples.
-It documents the exact parameters and versions used for reproducibility.
+It also optionally runs an FCI calculation to provide the exact ground-state
+energy target for benchmarking.
 
 System requirements:
 - Python >= 3.9
 - PySCF >= 2.3.0
-
-Usage:
-    python generate_fcidump.py
 """
 
 import sys
@@ -17,7 +15,7 @@ import os
 
 try:
     import pyscf
-    from pyscf import gto, scf, tools
+    from pyscf import gto, scf, tools, fci
 except ImportError:
     print("Error: PySCF is not installed.")
     print("Install with: pip install pyscf")
@@ -28,9 +26,9 @@ def print_versions():
     """Print version information for reproducibility"""
     import numpy
     import scipy
-    
+
     print("=" * 60)
-    print("Version Information")
+    print("CIPSIpy - Environment Information")
     print("=" * 60)
     print(f"Python: {sys.version}")
     print(f"PySCF: {pyscf.__version__}")
@@ -43,97 +41,76 @@ def print_versions():
 def generate_h2_fcidump(
     bond_length=1.4,  # Bohr
     basis='sto-3g',
-    output_file='FCIDUMP'
+    output_file='FCIDUMP',
+    run_fci=True      # The optional FCI step
 ):
     """
-    Generate FCIDUMP file for H2 molecule
-    
-    Parameters
-    ----------
-    bond_length : float
-        H-H bond length in Bohr (default: 1.4 Bohr ≈ 0.74 Angstrom)
-    basis : str
-        Basis set name (default: 'sto-3g')
-    output_file : str
-        Output FCIDUMP filename (default: 'FCIDUMP')
-    
-    Returns
-    -------
-    None
-        Writes FCIDUMP file to disk
+    Generate FCIDUMP file for H2 molecule and optionally run FCI
     """
-    
+
     print("=" * 60)
-    print("Generating H2 FCIDUMP")
+    print("Generating H2 Data for CIPSIpy")
     print("=" * 60)
-    print(f"Bond length: {bond_length} Bohr ({bond_length * 0.529177:.4f} Angstrom)")
+    print(f"Bond length: {bond_length} Bohr")
     print(f"Basis set: {basis}")
     print(f"Output file: {output_file}")
     print()
-    
+
     # Build molecule
     mol = gto.M(
         atom=f'H 0 0 0; H 0 0 {bond_length}',
         basis=basis,
         unit='Bohr',
-        symmetry=False,  # Disable symmetry for simplicity
-        verbose=3
+        symmetry=False,
+        verbose=0  # Reduced verbosity to keep output clean
     )
-    
-    print(f"Number of electrons: {mol.nelectron}")
-    print(f"Number of orbitals: {mol.nao}")
-    print(f"Nuclear repulsion: {mol.energy_nuc():.10f} Hartree")
-    print()
-    
+
     # Run Hartree-Fock calculation
-    print("Running Hartree-Fock calculation...")
+    print("Step 1: Running Hartree-Fock (RHF)...")
     mf = scf.RHF(mol)
-    mf.kernel()
-    
-    print(f"HF energy: {mf.e_tot:.10f} Hartree")
-    print()
-    
+    hf_energy = mf.kernel()
+    print(f"✓ HF energy: {hf_energy:.10f} Hartree")
+
     # Write FCIDUMP
-    print(f"Writing FCIDUMP to {output_file}...")
+    print(f"Step 2: Writing FCIDUMP to {output_file}...")
     tools.fcidump.from_scf(mf, output_file, tol=1e-15)
-    
-    print("Done!")
-    print()
-    
-    # Verify the file was created
-    if os.path.exists(output_file):
-        file_size = os.path.getsize(output_file)
-        print(f"✓ FCIDUMP file created successfully ({file_size} bytes)")
+
+    # Optional FCI Step
+    fci_energy = None
+    if run_fci:
+        print("Step 3: Running Full CI (FCI) Benchmark...")
+        cisolver = fci.FCI(mf)
+        fci_energy = cisolver.kernel()[0]
+        correlation_energy = fci_energy - hf_energy
+        print(f"✓ FCI energy:         {fci_energy:.10f} Hartree")
+        print(f"✓ Correlation energy: {correlation_energy:.10f} Hartree")
     else:
-        print("✗ Error: FCIDUMP file was not created")
-        sys.exit(1)
+        print("Step 3: Skipping FCI Benchmark.")
+
+    print("\nGeneration Complete!")
+    return hf_energy, fci_energy
 
 
 def main():
     """Main function"""
     print_versions()
-    
-    # Generate H2 FCIDUMP with standard parameters
-    # These parameters match the test case used in the project
-    generate_h2_fcidump(
-        bond_length=1.4,      # Bohr (near equilibrium geometry)
-        basis='sto-3g',       # Minimal basis set
-        output_file='FCIDUMP'
+
+    # Generate H2 FCIDUMP and run FCI as truth
+    hf_e, fci_e = generate_h2_fcidump(
+        bond_length=1.4,
+        basis='sto-3g',
+        output_file='FCIDUMP',
+        run_fci=True
     )
-    
+
     print()
     print("=" * 60)
-    print("Next Steps")
+    print("CIPSIpy Benchmarking Target")
     print("=" * 60)
-    print("1. Verify the FCIDUMP file:")
-    print("   python run_h2.py")
-    print()
-    print("2. Expected results:")
-    print("   - Number of electrons: 2")
-    print("   - Number of orbitals: 2")
-    print("   - Nuclear repulsion: ~0.716 Hartree")
-    print("   - HF energy: ~-1.114 Hartree")
-    print("   - FCI energy (target): ~-1.137 Hartree")
+    print(f"Reference HF:  {hf_e:.10f}")
+    if fci_e:
+        print(f"Target FCI:    {fci_e:.10f}")
+        print(f"Total Corr:    {(fci_e - hf_e):.10f}")
     print("=" * 60)
 
 
