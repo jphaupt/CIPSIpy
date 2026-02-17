@@ -13,7 +13,7 @@ This project implements a Configuration Interaction using a Perturbative Selecti
 ```
 SCIpy/
 ├── src/
-│   └── scipy/
+│   └── cipsypy/
 │       ├── __init__.py
 │       ├── fcidump.py          # FCIDUMP file parser
 │       ├── determinants.py     # Slater determinant operations

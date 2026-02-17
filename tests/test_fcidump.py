@@ -12,7 +12,7 @@ import numpy as np
 # For development: add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from scipy.fcidump import read_fcidump, write_fcidump
+from cipsypy.fcidump import read_fcidump, write_fcidump
 
 
 class TestFCIDUMP:

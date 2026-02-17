@@ -12,8 +12,8 @@
 - `QUICKSTART.md` - 5-minute getting started guide
 
 **Implementation (2 Python modules)**
-- `src/scipy/fcidump.py` - FCIDUMP file reader/writer
-- `src/scipy/__init__.py` - Package initialization
+- `src/cipsypy/fcidump.py` - FCIDUMP file reader/writer
+- `src/cipsypy/__init__.py` - Package initialization
 
 **Tests (1 test suite, 3 tests, ALL PASSING ✅)**
 - `tests/test_fcidump.py`:
@@ -145,7 +145,7 @@ SCIpy/
 ├── QUICKSTART.md                # Getting started guide
 ├── pyproject.toml               # Package configuration
 ├── src/
-│   └── scipy/
+│   └── cipsypy/
 │       ├── __init__.py          # Package init
 │       └── fcidump.py           # FCIDUMP reader (✅ working)
 ├── tests/

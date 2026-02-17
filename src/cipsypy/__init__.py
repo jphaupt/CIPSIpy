@@ -1,5 +1,5 @@
 """
-SCIpy - Selected Configuration Interaction in JAX
+CIPSIpy - Selected Configuration Interaction in JAX
 
 A simple CIPSI implementation for learning JAX and quantum chemistry.
 """

@@ -54,14 +54,14 @@ pytest tests/
 pytest tests/test_fcidump.py -v
 
 # Run with coverage
-pytest tests/ --cov=scipy
+pytest tests/ --cov=cipsypy
 ```
 
 ## Project Structure
 
 ```
 SCIpy/
-├── src/scipy/          # Main source code
+├── src/cipsypy/        # Main source code
 │   ├── fcidump.py      # FCIDUMP reader ✅
 │   ├── determinants.py # Determinant operations (TODO)
 │   ├── hamiltonian.py  # Matrix elements (TODO)
@@ -98,7 +98,7 @@ Phase 2 (Current): Implement Slater determinant operations
 
 ## Understanding the Files
 
-### src/scipy/fcidump.py
+### src/cipsypy/fcidump.py
 Reads FCIDUMP files containing molecular integrals from quantum chemistry codes like PySCF.
 
 **Key functions**:
