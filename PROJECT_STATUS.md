@@ -137,7 +137,7 @@ See `VALIDATION.md` for complete testing strategy.
 ## File Structure
 
 ```
-SCIpy/
+CIPSIpy/
 ├── README.md                    # Project overview
 ├── ANSWER.md                    # Direct answer to problem statement
 ├── PROJECT_OUTLINE.md           # Detailed implementation plan

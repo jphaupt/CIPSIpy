@@ -15,22 +15,23 @@ import numpy as np
 def read_fcidump(filename):
     """
     Read molecular integrals from FCIDUMP file.
-    
+
     Args:
         filename: Path to FCIDUMP file
-        
+
     Returns:
         tuple: (n_elec, n_orb, h_core, eri, e_nuc)
             - n_elec: Number of electrons
             - n_orb: Number of spatial orbitals
+            - spin: Twice the spin, i.e. MS2 = 2 S_z
             - h_core: One-electron integrals [n_orb, n_orb]
             - eri: Two-electron integrals [n_orb, n_orb, n_orb, n_orb]
             - e_nuc: Nuclear repulsion energy
-            
+
     FCIDUMP format:
         Line 1: &FCI NORB=N,NELEC=M,MS2=S,
         Lines 2+: integral_value i j k l
-        
+
         where (i,j,k,l) indices indicate:
         - i,j,k,l > 0: Two-electron integral (ij|kl)
         - i,j > 0, k=l=0: One-electron integral h[i,j]
@@ -39,46 +40,53 @@ def read_fcidump(filename):
     with open(filename, 'r') as f:
         # Read header line
         header = f.readline()
-        
+
         # Parse header (format: &FCI NORB=N,NELEC=M,MS2=S,)
         n_orb = None
         n_elec = None
-        
-        # Simple parsing - look for NORB and NELEC
-        parts = header.upper().split(',')
-        for part in parts:
-            if 'NORB' in part:
-                n_orb = int(part.split('=')[1])
-            elif 'NELEC' in part:
-                n_elec = int(part.split('=')[1])
-        
-        if n_orb is None or n_elec is None:
-            raise ValueError("Could not parse NORB and NELEC from FCIDUMP header")
-        
-        # Skip any additional header lines until we find numeric data
+        spin = None
+
+        # Collect all header lines until &END or /
+        header_text = header
         line = f.readline()
-        while line.strip():
-            # Check if line starts with a number (possibly with sign)
-            first_char = line.strip()[0]
-            if first_char.isdigit() or first_char in ['-', '+', '.']:
+        while line:
+            line_stripped = line.strip().upper()
+            header_text += line
+            if line_stripped.startswith('&END') or line_stripped.startswith('/'):
                 break
             line = f.readline()
-        
+
+        # Simple parsing - look for NORB, NELEC, and MS2
+        parts = header_text.upper().split(',')
+        for part in parts:
+            if 'NORB' in part:
+                n_orb = int(part.split('=')[1].strip())
+            elif 'NELEC' in part:
+                n_elec = int(part.split('=')[1].strip())
+            elif 'MS2' in part:
+                spin = int(part.split('=')[1].strip())
+
+        if n_orb is None or n_elec is None or spin is None:
+            raise ValueError("Could not parse NORB and NELEC from FCIDUMP header")
+
+        # Read next line after header
+        line = f.readline()
+
         # Initialize arrays
         h_core = np.zeros((n_orb, n_orb))
         eri = np.zeros((n_orb, n_orb, n_orb, n_orb))
         e_nuc = 0.0
-        
+
         # Read integrals
         while line:
             parts = line.split()
             if len(parts) < 5:
                 line = f.readline()
                 continue
-                
+
             value = float(parts[0])
             i, j, k, l = map(int, parts[1:5])
-            
+
             # FCIDUMP uses 1-based indexing
             if i == 0 and j == 0 and k == 0 and l == 0:
                 # Nuclear repulsion
@@ -101,16 +109,16 @@ def read_fcidump(filename):
                 eri[l-1, k-1, i-1, j-1] = value
                 eri[k-1, l-1, j-1, i-1] = value
                 eri[l-1, k-1, j-1, i-1] = value
-            
+
             line = f.readline()
-    
-    return n_elec, n_orb, jnp.array(h_core), jnp.array(eri), e_nuc
+
+    return n_elec, n_orb, spin, jnp.array(h_core), jnp.array(eri), e_nuc
 
 
 def write_fcidump(filename, n_elec, n_orb, h_core, eri, e_nuc, ms2=0):
     """
     Write molecular integrals to FCIDUMP file.
-    
+
     Args:
         filename: Path to output FCIDUMP file
         n_elec: Number of electrons
@@ -126,7 +134,7 @@ def write_fcidump(filename, n_elec, n_orb, h_core, eri, e_nuc, ms2=0):
         f.write("  ORBSYM=" + ",".join(["1"]*n_orb) + ",\n")
         f.write("  ISYM=1,\n")
         f.write(" &END\n")
-        
+
         # Write two-electron integrals (physicist notation: (ij|kl))
         for i in range(n_orb):
             for j in range(i+1):
@@ -137,13 +145,13 @@ def write_fcidump(filename, n_elec, n_orb, h_core, eri, e_nuc, ms2=0):
                             val = eri[i, j, k, l]
                             if abs(val) > 1e-12:
                                 f.write(f" {val:23.16E} {i+1:3d} {j+1:3d} {k+1:3d} {l+1:3d}\n")
-        
+
         # Write one-electron integrals
         for i in range(n_orb):
             for j in range(i+1):
                 val = h_core[i, j]
                 if abs(val) > 1e-12:
                     f.write(f" {val:23.16E} {i+1:3d} {j+1:3d} {0:3d} {0:3d}\n")
-        
+
         # Write nuclear repulsion
         f.write(f" {e_nuc:23.16E} {0:3d} {0:3d} {0:3d} {0:3d}\n")

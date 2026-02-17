@@ -13,7 +13,7 @@ This project implements a Configuration Interaction using a Perturbative Selecti
 ```
 SCIpy/
 ├── src/
-│   └── CIPSIpy/
+│   └── cipsipy/
 │       ├── __init__.py
 │       ├── fcidump.py          # FCIDUMP file parser
 │       ├── determinants.py     # Slater determinant operations
@@ -111,7 +111,7 @@ CIPSI is a selected configuration interaction method that:
 **Purpose**: Calculate ⟨Det_i|H|Det_j⟩
 
 **Key Functions**:
-- `hamiltonian_element(det_i, det_j, h_core, eri)`: 
+- `hamiltonian_element(det_i, det_j, h_core, eri)`:
   - Same determinant: Sum of orbital energies
   - Single excitation: One-electron + two-electron terms
   - Double excitation: Two-electron term only
@@ -141,17 +141,17 @@ for iteration in range(max_iterations):
     H = build_hamiltonian(dets, h_core, eri)
     E, C = jnp.linalg.eigh(H)
     energies.append(E[0])
-    
+
     # Selection
     candidates, pt2_contribs = select_determinants(
         dets, C[:, 0], h_core, eri, threshold
     )
-    
+
     # Check convergence
     total_pt2 = jnp.sum(pt2_contribs)
     if total_pt2 < convergence_threshold:
         break
-    
+
     # Grow
     dets.extend(candidates)
 
@@ -189,7 +189,7 @@ For systems small enough for Full CI:
 - **H2 (2 electrons, minimal basis)**: 2-4 spatial orbitals
   - Run FCI and CIPSI
   - Final CIPSI energy should match FCI exactly when all determinants included
-  
+
 - **HeH+ (2 electrons)**: Similar size
   - Validate against published FCI results
   - Check PT2 estimates against actual energy lowering
@@ -301,7 +301,7 @@ PT2 correction: < 10^-6 Hartree
 1. **Automatic Differentiation**: Not directly used in CI, but useful for forces/properties
 2. **JIT Compilation**: Speed up matrix builds and diagonalization
 3. **Vectorization**: Batch process determinant generation
-4. **GPU Acceleration**: 
+4. **GPU Acceleration**:
    - Matrix diagonalization
    - Large-scale PT2 screening
    - Hamiltonian matrix construction
@@ -323,13 +323,13 @@ PT2 correction: < 10^-6 Hartree
 
 1. **Memory Management**: Storing all determinants becomes expensive
    - Solution: Iterative generation, don't store all at once
-   
+
 2. **Hamiltonian Matrix Build**: O(N²) scaling in determinants
    - Solution: Only compute needed elements, use sparsity
-   
+
 3. **Determinant Generation**: Combinatorial explosion
    - Solution: Efficient bit manipulation, avoid duplicates
-   
+
 4. **PT2 Screening**: Most expensive step
    - Solution: Early rejection, parallel processing on GPU
 
@@ -363,7 +363,7 @@ The implementation will be considered successful when:
 ## Next Steps
 
 1. Set up basic Python package structure
-2. Create pyproject.toml with JAX dependencies  
+2. Create pyproject.toml with JAX dependencies
 3. Implement and test FCIDUMP reader
 4. Generate H2 example FCIDUMP files for testing
 5. Begin determinant operations implementation

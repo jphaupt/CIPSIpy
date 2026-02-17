@@ -41,10 +41,11 @@
 
 ### Phase 5: CIPSI Selection
 - [ ] Calculate PT2 energy contributions
+- [ ] CIPSI based on "external to internal" algorithm, using double-ionised generator determinants and tagging
 - [ ] Select important determinants based on threshold
 - [ ] Test selection criteria
 
-### Phase 6: Full CIPSI Algorithm
+### Phase 6: Full CIPSI Algorithm (Unfiltered)
 - [ ] Iterative procedure: diagonalize → select → grow
 - [ ] Convergence checks
 - [ ] Test on H2 and HeH+ systems
@@ -59,6 +60,9 @@
 - [ ] Document all modules
 - [ ] Add usage examples
 - [ ] Tutorial notebook
+
+### Phase 9: Filtered CIPSI
+- [ ] Review sCI thesis to better understand what is done here
 
 ---
 
@@ -185,7 +189,7 @@ With spin: 6 (singlet-adapted)
 
 ### Parallelization Opportunities (JAX Focus):
 
-1. **PT2 Screening**: 
+1. **PT2 Screening**:
    - Most expensive step
    - Independent calculations for each external determinant
    - Perfect for vmap/GPU parallelization
@@ -237,7 +241,7 @@ With spin: 6 (singlet-adapted)
 
 📚 **Documentation Available**:
 - `PROJECT_OUTLINE.md` - Detailed implementation plan
-- `VALIDATION.md` - How to verify correctness  
+- `VALIDATION.md` - How to verify correctness
 - `QUICKSTART.md` - Getting started guide
 - `README.md` - Overview
 
@@ -271,7 +275,7 @@ With spin: 6 (singlet-adapted)
 
 1. ✅ Build foundation (FCIDUMP reader, tests, examples)
 2. Implement determinant operations
-3. Implement Hamiltonian matrix elements  
+3. Implement Hamiltonian matrix elements
 4. Test with full CI on H2
 5. Add CIPSI selection algorithm
 6. Optimize with JAX (JIT, vmap, GPU)
