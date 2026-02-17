@@ -9,7 +9,7 @@ description = "A simple CIPSI (Configuration Interaction with Perturbative Selec
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "J. Philip Haupt", email = "jphaupt@example.com"}
+    {name = "J. Philip Haupt"}
 ]
 requires-python = ">=3.9"
 dependencies = [

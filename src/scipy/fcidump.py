@@ -55,9 +55,13 @@ def read_fcidump(filename):
         if n_orb is None or n_elec is None:
             raise ValueError("Could not parse NORB and NELEC from FCIDUMP header")
         
-        # Skip any additional header lines
+        # Skip any additional header lines until we find numeric data
         line = f.readline()
-        while line.strip() and not line.strip()[0].replace('-', '').replace('.', '').replace('E', '').replace('e', '').replace('+', '').isdigit():
+        while line.strip():
+            # Check if line starts with a number (possibly with sign)
+            first_char = line.strip()[0]
+            if first_char.isdigit() or first_char in ['-', '+', '.']:
+                break
             line = f.readline()
         
         # Initialize arrays

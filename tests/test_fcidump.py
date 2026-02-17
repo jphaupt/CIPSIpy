@@ -3,12 +3,13 @@ Tests for FCIDUMP file parsing
 """
 
 import os
+import sys
 import tempfile
 import pytest
 import jax.numpy as jnp
 import numpy as np
 
-import sys
+# For development: add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from scipy.fcidump import read_fcidump, write_fcidump

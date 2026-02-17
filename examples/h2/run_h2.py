@@ -9,10 +9,10 @@ This is the simplest possible test case:
 Expected FCI energy: approximately -1.137 Hartree
 """
 
-import sys
 import os
+import sys
 
-# Add src to path
+# For development: add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from scipy.fcidump import read_fcidump
