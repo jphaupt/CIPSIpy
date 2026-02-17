@@ -51,7 +51,13 @@ Current status:
 
 ## Documentation
 
-- [PROJECT_OUTLINE.md](PROJECT_OUTLINE.md) - Comprehensive project plan, algorithm overview, and validation strategy
+### Start Here
+- **[ANSWER.md](ANSWER.md)** - Direct answer to "What is the project outline and how do we know we have the right answer?"
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
+
+### Detailed Guides
+- **[PROJECT_OUTLINE.md](PROJECT_OUTLINE.md)** - Complete implementation plan with algorithm details
+- **[VALIDATION.md](VALIDATION.md)** - Comprehensive testing and validation strategy
 
 ## License
 
