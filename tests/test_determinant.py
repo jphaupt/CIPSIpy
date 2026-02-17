@@ -34,14 +34,14 @@ def test_is_occupied():
     det = Determinant(0b101, 0b110, 4)
     
     # Alpha occupation
-    assert det.is_alpha_occupied(0) == True
-    assert det.is_alpha_occupied(1) == False
-    assert det.is_alpha_occupied(2) == True
+    assert det.is_alpha_occupied(0)
+    assert not det.is_alpha_occupied(1)
+    assert det.is_alpha_occupied(2)
     
     # Beta occupation
-    assert det.is_beta_occupied(0) == False
-    assert det.is_beta_occupied(1) == True
-    assert det.is_beta_occupied(2) == True
+    assert not det.is_beta_occupied(0)
+    assert det.is_beta_occupied(1)
+    assert det.is_beta_occupied(2)
 
 
 def test_excitation():
