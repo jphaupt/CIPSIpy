@@ -2,7 +2,7 @@
 Example usage of FCIDUMP parser and Determinant bitstrings.
 """
 
-from scipy import FCIDump, Determinant
+from scipy_jax import FCIDump, Determinant
 import os
 
 

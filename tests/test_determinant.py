@@ -2,7 +2,7 @@
 Tests for Determinant bitstring representation.
 """
 
-from scipy.determinant import Determinant
+from scipy_jax.determinant import Determinant
 
 
 def test_from_occupation():

@@ -18,7 +18,7 @@ pip install -r requirements.txt
 ### FCIDUMP Parser
 
 ```python
-from scipy import FCIDump
+from scipy_jax import FCIDump
 
 # Parse FCIDUMP file
 fcidump = FCIDump('path/to/file.fcidump')
@@ -36,7 +36,7 @@ v = fcidump.get_two_electron_tensor()  # Shape: (norb, norb, norb, norb)
 ### Determinant Bitstrings
 
 ```python
-from scipy import Determinant
+from scipy_jax import Determinant
 
 # Create determinant from occupation lists
 det = Determinant.from_occupation(

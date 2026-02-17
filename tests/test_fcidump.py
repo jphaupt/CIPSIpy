@@ -5,7 +5,7 @@ Tests for FCIDUMP parser.
 import os
 import tempfile
 import numpy as np
-from scipy.fcidump import FCIDump
+from scipy_jax.fcidump import FCIDump
 
 
 def test_parse_fcidump_header():
