@@ -349,6 +349,9 @@ def _hamiltonian_diagonal_spin(det_alpha, det_beta, n_orb, h_core, eri):
                 energy += 0.5 * (eri[i, i, j, j] - eri[i, j, j, i])
 
     # Alpha-beta interactions (only Coulomb, no exchange)
+    # Note: ERIs are stored in chemist's notation (pq|rs) = eri[p,q,r,s]
+    # But for spin-separated determinants, we need physicist's notation [ij|kl] = <ik|jl>
+    # For alpha in orbital i and beta in orbital j: [ij|ij]_phys = (ii|jj)_chem = eri[i,i,j,j]
     for i in alpha_indices:
         for j in beta_indices:
             energy += eri[i, i, j, j]
@@ -405,6 +408,8 @@ def _hamiltonian_single_spin(
             element += eri[i, a, k, k] - eri[i, k, k, a]
 
     # Two-electron terms with opposite spin electrons (only Coulomb)
+    # Note: ERIs stored in chemist's notation, but we need physicist's
+    # For excitation i->a with opposite spin in k: [ik|ak]_phys = (ia|kk)_chem = eri[i,a,k,k]
     occ_opp = get_occupied_indices(spectator_det, n_orb)
     opp_indices = jnp.where(occ_opp)[0]
     for k in opp_indices:
