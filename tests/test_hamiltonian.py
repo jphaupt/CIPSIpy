@@ -106,9 +106,10 @@ class TestDiagonalElements:
 
         energy = hamiltonian_element(det_alpha, det_beta, det_alpha, det_beta, n_orb, h_core, eri)
 
-        # Expected: h[0,0] + h[1,1] + (00|11) - (01|10)
-        # = -1.0 + (-0.5) + 0.3 - 0.1 = -1.3
-        expected = -1.0 - 0.5 + 0.3 - 0.1
+        # Expected: h[0,0] + h[1,1] + 0.5*[(00|11) - (01|10)]
+        # The 0.5 factor accounts for double-counting in the i!=j sum
+        # = -1.0 + (-0.5) + 0.5*(0.3 - 0.1) = -1.5 + 0.1 = -1.4
+        expected = -1.0 - 0.5 + 0.5 * (0.3 - 0.1)
         assert jnp.isclose(energy, expected, atol=1e-10)
 
 
