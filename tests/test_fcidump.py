@@ -19,7 +19,7 @@ class TestFCIDUMP:
 
     def test_read_h2_fcidump(self):
         """Test reading H2 FCIDUMP file"""
-        fcidump_path = os.path.join(os.path.dirname(__file__), "../examples/h2/FCIDUMP")
+        fcidump_path = os.path.join(os.path.dirname(__file__), "../assets/H2/sto-3g/FCIDUMP")
 
         n_elec, n_orb, spin, h_core, eri, e_nuc = read_fcidump(fcidump_path)
 
@@ -75,7 +75,7 @@ class TestFCIDUMP:
 
     def test_eri_symmetries(self):
         """Test that ERIs have correct permutation symmetries"""
-        fcidump_path = os.path.join(os.path.dirname(__file__), "../examples/h2/FCIDUMP")
+        fcidump_path = os.path.join(os.path.dirname(__file__), "../assets/H2/sto-3g/FCIDUMP")
 
         _, _, _, _, eri, _ = read_fcidump(fcidump_path)
 
