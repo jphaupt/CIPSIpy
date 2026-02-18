@@ -4,6 +4,8 @@
 
 A simple CIPSI (Configuration Interaction using a Perturbative Selection made Iteratively) implementation in JAX.
 
+Disclaimer: Development of this package made extensive use of LLMs to speed up the process. 
+
 ## Overview
 
 This is a minimal implementation of the CIPSI algorithm for learning purposes:
