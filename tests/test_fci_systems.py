@@ -65,6 +65,9 @@ def discover_test_systems(assets_dir):
 def generate_determinants(n_orbitals, n_alpha, n_beta):
     """
     Generate all possible determinants for given number of electrons and orbitals.
+    
+    Uses PySCF's determinant ordering: lexicographic order of bit strings.
+    For each alpha string (in lex order), iterate through all beta strings (in lex order).
 
     Args:
         n_orbitals: Number of spatial orbitals
@@ -73,29 +76,28 @@ def generate_determinants(n_orbitals, n_alpha, n_beta):
 
     Returns:
         List of (det_alpha, det_beta) tuples where each determinant is an integer
-        with bits representing occupied orbitals.
+        with bits representing occupied orbitals, ordered to match PySCF's convention.
     """
+    def make_strings_lexicographic(n_orbitals, n_electrons):
+        """Generate all bit strings with n_electrons bits set, in lexicographic order."""
+        strings = []
+        for occupied_orbitals in combinations(range(n_orbitals), n_electrons):
+            det = 0
+            for orb in occupied_orbitals:
+                det |= 1 << orb
+            strings.append(det)
+        # Sort by integer value (lexicographic ordering of bit string)
+        strings.sort()
+        return strings
+    
+    # Generate strings in lexicographic order (PySCF convention)
+    alpha_strings = make_strings_lexicographic(n_orbitals, n_alpha)
+    beta_strings = make_strings_lexicographic(n_orbitals, n_beta)
+    
+    # PySCF ordering: outer loop alpha, inner loop beta
     determinants = []
-
-    # Generate all alpha determinants
-    alpha_dets = []
-    for occupied_orbitals in combinations(range(n_orbitals), n_alpha):
-        det = 0
-        for orb in occupied_orbitals:
-            det |= 1 << orb
-        alpha_dets.append(det)
-
-    # Generate all beta determinants
-    beta_dets = []
-    for occupied_orbitals in combinations(range(n_orbitals), n_beta):
-        det = 0
-        for orb in occupied_orbitals:
-            det |= 1 << orb
-        beta_dets.append(det)
-
-    # Generate all combinations
-    for det_alpha in alpha_dets:
-        for det_beta in beta_dets:
+    for det_alpha in alpha_strings:
+        for det_beta in beta_strings:
             determinants.append((det_alpha, det_beta))
 
     return determinants
