@@ -59,7 +59,7 @@ class TestDiagonalElements:
     """Test diagonal Hamiltonian elements."""
 
     def test_diagonal_two_electrons_same_orbital(self):
-        """Test diagonal for 2 electrons in different orbitals, different spins."""
+        """Test diagonal for 2 electrons in same orbital, different spins."""
         # Alpha in orbital 0, beta in orbital 0 (same spatial orbital)
         det_alpha = 1  # 0b01
         det_beta = 1   # 0b01
@@ -192,7 +192,7 @@ class TestSingleExcitations:
         # Element = 1 * [0.4 + (12|00) - (10|02)]
         # We need exchange term: (ik|ka) where k=0 (same spin)
         eri = eri.at[1, 0, 0, 2].set(0.05)  # (10|02)
-        
+
         element = hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri)
 
         # = 1 * [0.4 + 0.1 - 0.05] = 0.45
