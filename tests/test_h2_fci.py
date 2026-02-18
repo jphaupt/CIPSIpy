@@ -97,12 +97,12 @@ class TestH2FCI:
         # The PySCF FCI result for H2 STO-3G is -1.1372759436 Hartree
         pyscf_reference = -1.1372759436
         assert jnp.isclose(
-            E_ground, pyscf_reference, atol=1e-5
+            E_ground, pyscf_reference, atol=1e-7
         ), f"Ground state energy {E_ground:.6f} differs from PySCF reference {pyscf_reference:.6f}"
 
         # Check that ground state has correct symmetry
         # For H2 singlet ground state, determinant 0 (both in orbital 0) should dominate
-        assert abs(eigenvectors[0, 0]) > 0.8, "Ground state should be dominated by |00⟩"
+        assert abs(eigenvectors[0, 0]) > 0.9, "Ground state should be dominated by |00⟩"
 
         print("\n✓ FCI test passed!")
         print(f"  Ground state energy: {E_ground:.6f} Hartree")

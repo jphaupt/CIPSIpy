@@ -1,0 +1,9 @@
+SYSTEM SUMMARY: H3+
+==============================
+Basis:       3-21g
+Orbitals:    6
+Electrons:   (1a, 1b)
+Determinants: 36
+Core Energy:  1.986525862468 a.u.
+Ground State (Matrix): -1.296408286513 a.u.
+Ground State (Kernel): -1.296408286513 a.u.

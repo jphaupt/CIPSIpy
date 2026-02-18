@@ -1,0 +1,9 @@
+SYSTEM SUMMARY: HeH+
+==============================
+Basis:       sto-3g
+Orbitals:    2
+Electrons:   (1a, 1b)
+Determinants: 4
+Core Energy:  1.369863013699 a.u.
+Ground State (Matrix): -2.851140596337 a.u.
+Ground State (Kernel): -2.851140596337 a.u.
