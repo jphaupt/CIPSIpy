@@ -4,23 +4,23 @@ Tests for determinant operations using bitstring representations
 
 import os
 import sys
-import pytest
+
 import jax.numpy as jnp
-import numpy as np
+import pytest
 
 # For development: add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.determinants import (
-    get_occupied_indices,
-    count_electrons,
-    create_determinant,
     annihilate,
-    create,
-    phase_single,
-    apply_single_excitation,
-    phase_double,
     apply_double_excitation,
+    apply_single_excitation,
+    count_electrons,
+    create,
+    create_determinant,
+    get_occupied_indices,
+    phase_double,
+    phase_single,
 )
 
 

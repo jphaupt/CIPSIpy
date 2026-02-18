@@ -4,20 +4,20 @@ Tests for Hamiltonian matrix elements using Slater-Condon rules
 
 import os
 import sys
-import pytest
+
 import jax.numpy as jnp
-import numpy as np
+import pytest
 
 # For development: add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.hamiltonian import (
     excitation_level,
     get_excitation_operators,
-    hamiltonian_element,
     hamiltonian_diagonal,
-    hamiltonian_single,
     hamiltonian_double,
+    hamiltonian_element,
+    hamiltonian_single,
 )
 
 
@@ -40,14 +40,14 @@ class TestExcitationLevel:
 
     def test_double_excitation(self):
         """Test double excitation gives level 2"""
-        det_i = 3   # 0b0011 (orbitals 0, 1)
+        det_i = 3  # 0b0011 (orbitals 0, 1)
         det_j = 12  # 0b1100 (orbitals 2, 3)
         level = excitation_level(det_i, det_j)
         assert level == 2
 
     def test_triple_excitation(self):
         """Test triple excitation gives level 3"""
-        det_i = 7   # 0b0111 (orbitals 0, 1, 2)
+        det_i = 7  # 0b0111 (orbitals 0, 1, 2)
         det_j = 56  # 0b111000 (orbitals 3, 4, 5)
         level = excitation_level(det_i, det_j)
         assert level == 3
@@ -67,7 +67,7 @@ class TestGetExcitationOperators:
 
     def test_double_excitation_indices(self):
         """Test getting hole/particle indices for double excitation"""
-        det_i = 3   # 0b0011 (orbitals 0, 1)
+        det_i = 3  # 0b0011 (orbitals 0, 1)
         det_j = 12  # 0b1100 (orbitals 2, 3)
         holes, particles = get_excitation_operators(det_i, det_j)
         # Orbitals 0, 1 are removed, orbitals 2, 3 are added
@@ -85,10 +85,7 @@ class TestHamiltonianDiagonal:
         n_orb = 2
 
         # One-electron integrals
-        h_core = jnp.array([
-            [-1.0, 0.0],
-            [0.0, -0.5]
-        ])
+        h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
 
         # Two-electron integrals (simplified)
         eri = jnp.zeros((2, 2, 2, 2))
@@ -104,14 +101,14 @@ class TestHamiltonianDiagonal:
         # 1/2 * [(00|00) + (11|11) + 2*(01|01) - 2*(01|10)]
         # Note: (ij|ij) - (ij|ji) = J - K
         expected = -1.5 + 0.5 * (0.5 + 0.3) + (0.1 - 0.1)
-        
+
         # Actually, for 2 electrons in orbitals 0 and 1:
         # E = h[0,0] + h[1,1] + (00|11) - (01|10)
         # The diagonal is: sum_i h[i,i] + 1/2 sum_{ij} [(ii|jj) - (ij|ji)]
         # For i=0, j=1: (00|11) - (01|10)
         expected = -1.0 + (-0.5) + (0.1 - 0.1)
         expected = -1.5
-        
+
         assert jnp.isclose(energy, expected, atol=1e-10)
 
     def test_diagonal_empty(self):
@@ -120,7 +117,7 @@ class TestHamiltonianDiagonal:
         n_orb = 2
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
         eri = jnp.zeros((2, 2, 2, 2))
-        
+
         energy = hamiltonian_diagonal(det, n_orb, h_core, eri)
         assert energy == 0.0
 
@@ -136,11 +133,7 @@ class TestHamiltonianSingle:
         n_orb = 3
 
         # One-electron integral
-        h_core = jnp.array([
-            [-1.0, 0.1, 0.2],
-            [0.1, -0.5, 0.3],
-            [0.2, 0.3, -0.3]
-        ])
+        h_core = jnp.array([[-1.0, 0.1, 0.2], [0.1, -0.5, 0.3], [0.2, 0.3, -0.3]])
 
         # Two-electron integrals
         eri = jnp.zeros((3, 3, 3, 3))
@@ -170,24 +163,21 @@ class TestHamiltonianDouble:
 
     def test_double_excitation_element(self):
         """Test double excitation matrix element"""
-        det_i = 3   # 0b0011 (orbitals 0, 1)
+        det_i = 3  # 0b0011 (orbitals 0, 1)
         det_j = 12  # 0b1100 (orbitals 2, 3)
         n_orb = 4
 
         h_core = jnp.zeros((4, 4))
-        
+
         # Two-electron integrals
         eri = jnp.zeros((4, 4, 4, 4))
         # For double excitation i,j -> a,b, only (ij|ab) term contributes
         eri = eri.at[0, 1, 2, 3].set(0.25)
 
         element = hamiltonian_double(det_i, det_j, n_orb, h_core, eri)
-        
+
         # For double excitation i,j -> a,b:
         # H = (ij|ab)
-        # With phase correction
-        expected = 0.25  # Need to verify phase
-        
         # The phase calculation is complex, just check it's non-zero
         assert element != 0.0
 
@@ -201,10 +191,10 @@ class TestHamiltonianElement:
         n_orb = 2
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
         eri = jnp.zeros((2, 2, 2, 2))
-        
+
         element = hamiltonian_element(det, det, n_orb, h_core, eri)
         expected = hamiltonian_diagonal(det, n_orb, h_core, eri)
-        
+
         assert jnp.isclose(element, expected)
 
     def test_hamiltonian_single_excitation(self):
@@ -214,33 +204,33 @@ class TestHamiltonianElement:
         n_orb = 3
         h_core = jnp.eye(3) * -1.0
         eri = jnp.zeros((3, 3, 3, 3))
-        
+
         element = hamiltonian_element(det_i, det_j, n_orb, h_core, eri)
         expected = hamiltonian_single(det_i, det_j, n_orb, h_core, eri)
-        
+
         assert jnp.isclose(element, expected)
 
     def test_hamiltonian_double_excitation(self):
         """Test Hamiltonian for double excitation"""
-        det_i = 3   # 0b0011
+        det_i = 3  # 0b0011
         det_j = 12  # 0b1100
         n_orb = 4
         h_core = jnp.zeros((4, 4))
         eri = jnp.ones((4, 4, 4, 4)) * 0.1
-        
+
         element = hamiltonian_element(det_i, det_j, n_orb, h_core, eri)
         expected = hamiltonian_double(det_i, det_j, n_orb, h_core, eri)
-        
+
         assert jnp.isclose(element, expected)
 
     def test_hamiltonian_higher_excitation(self):
         """Test Hamiltonian for triple or higher excitation returns 0"""
-        det_i = 7   # 0b0111 (orbitals 0, 1, 2)
+        det_i = 7  # 0b0111 (orbitals 0, 1, 2)
         det_j = 56  # 0b111000 (orbitals 3, 4, 5)
         n_orb = 6
         h_core = jnp.zeros((6, 6))
         eri = jnp.zeros((6, 6, 6, 6))
-        
+
         element = hamiltonian_element(det_i, det_j, n_orb, h_core, eri)
         assert element == 0.0
 
@@ -249,26 +239,23 @@ class TestHamiltonianElement:
         # Simple 2-orbital, 2-electron system
         # Determinants: |11⟩ (both electrons in orbital 0 and 1)
         n_orb = 2
-        
-        h_core = jnp.array([
-            [-1.0, 0.1],
-            [0.1, -0.5]
-        ])
-        
+
+        h_core = jnp.array([[-1.0, 0.1], [0.1, -0.5]])
+
         eri = jnp.zeros((2, 2, 2, 2))
         eri = eri.at[0, 0, 1, 1].set(0.2)
         eri = eri.at[1, 1, 0, 0].set(0.2)
-        
+
         det = 3  # 0b0011 - both orbitals occupied
-        
+
         # Diagonal element
         H_diag = hamiltonian_element(det, det, n_orb, h_core, eri)
-        
+
         # Should be sum of one-electron integrals plus two-electron
         # E = h[0,0] + h[1,1] + (00|11)
         expected = -1.0 + (-0.5) + 0.2
         expected = -1.3
-        
+
         assert jnp.isclose(H_diag, expected, atol=1e-10)
 
 

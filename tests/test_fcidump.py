@@ -5,12 +5,11 @@ Tests for FCIDUMP file parsing
 import os
 import sys
 import tempfile
-import pytest
+
 import jax.numpy as jnp
-import numpy as np
 
 # For development: add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.fcidump import read_fcidump, write_fcidump
 
@@ -20,10 +19,7 @@ class TestFCIDUMP:
 
     def test_read_h2_fcidump(self):
         """Test reading H2 FCIDUMP file"""
-        fcidump_path = os.path.join(
-            os.path.dirname(__file__),
-            '../examples/h2/FCIDUMP'
-        )
+        fcidump_path = os.path.join(os.path.dirname(__file__), "../examples/h2/FCIDUMP")
 
         n_elec, n_orb, spin, h_core, eri, e_nuc = read_fcidump(fcidump_path)
 
@@ -54,14 +50,16 @@ class TestFCIDUMP:
         e_nuc = 1.5
 
         # Write to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.fcidump') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".fcidump") as f:
             tmp_path = f.name
 
         try:
             write_fcidump(tmp_path, n_elec, n_orb, h_core, eri, e_nuc)
 
             # Read back
-            n_elec_read, n_orb_read, spin_read, h_core_read, eri_read, e_nuc_read = read_fcidump(tmp_path)
+            n_elec_read, n_orb_read, spin_read, h_core_read, eri_read, e_nuc_read = read_fcidump(
+                tmp_path
+            )
 
             # Check values match
             assert n_elec_read == n_elec
@@ -77,10 +75,7 @@ class TestFCIDUMP:
 
     def test_eri_symmetries(self):
         """Test that ERIs have correct permutation symmetries"""
-        fcidump_path = os.path.join(
-            os.path.dirname(__file__),
-            '../examples/h2/FCIDUMP'
-        )
+        fcidump_path = os.path.join(os.path.dirname(__file__), "../examples/h2/FCIDUMP")
 
         _, _, _, _, eri, _ = read_fcidump(fcidump_path)
 
