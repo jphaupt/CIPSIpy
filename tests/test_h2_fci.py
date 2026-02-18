@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 from cipsipy.fcidump import read_fcidump
 from cipsipy.hamiltonian import hamiltonian_element_spin
 
+ENERGY_TOLERANCE = 1e-7
 
 class TestH2FCI:
     """Test Full CI for H2 molecule using spin-separated determinants"""
@@ -92,10 +93,11 @@ class TestH2FCI:
         print(eigenvectors[:, 0])
 
         # Check that ground state energy is reasonable
-        # Expected FCI energy for H2/STO-3G at R=1.4 bohr is around -1.137 Hartree
+        # FCI energy for H2/STO-3G at R=1.4 bohr is -1.1372759436 Ha
         # Reference values may vary slightly depending on geometry
-        assert E_ground < -1.0, f"Ground state energy {E_ground} too high"
-        assert E_ground > -2.0, f"Ground state energy {E_ground} too low"
+        assert jnp.isclose(
+            E_ground, -1.1372759436, atol=ENERGY_TOLERANCE
+        ), f"Ground state energy {E_ground:.6f} does not match expected -1.1372759436"
 
         # Check that ground state has correct symmetry
         # For H2 singlet ground state, determinant 0 (both in orbital 0) should dominate
@@ -133,7 +135,7 @@ class TestH2FCI:
         n_elec, n_orb, spin, h_core, eri, e_nuc = read_fcidump(fcidump_path)
 
         # Test diagonal element for |00⟩
-        det_alpha, det_beta = 1, 1  # Both in orbital 0
+        det_alpha, det_beta = 0b1, 0b1  # Both in orbital 0
         H_00 = hamiltonian_element_spin(
             det_alpha, det_beta, det_alpha, det_beta, n_orb, h_core, eri
         )

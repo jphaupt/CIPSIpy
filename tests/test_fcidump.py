@@ -5,7 +5,7 @@ Tests for FCIDUMP file parsing
 import os
 import sys
 import tempfile
-
+import pytest
 import jax.numpy as jnp
 
 # For development: add src to path
