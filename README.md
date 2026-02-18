@@ -48,10 +48,12 @@ This is a work in progress. See [PROJECT_OUTLINE.md](PROJECT_OUTLINE.md) for det
 Current status:
 - [x] Project structure and outline
 - [x] FCIDUMP reader
-- [ ] Slater determinant operations
-- [ ] Hamiltonian matrix elements
-- [ ] CIPSI algorithm
+- [x] Slater determinant operations
+- [x] Hamiltonian matrix elements
+- [ ] Unfiltered batch CIPSI algorithm
 - [ ] Validation tests
+- [ ] Filtered batch CIPSI algorithm
+- [ ] Parallelisation and optimisation
 
 ## Documentation
 
