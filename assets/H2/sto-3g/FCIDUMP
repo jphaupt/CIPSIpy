@@ -1,6 +1,4 @@
- &FCI NORB=   2,
- NELEC= 2,
- MS2=0,
+ &FCI NORB=   2,NELEC= 2,MS2=0,
   ORBSYM=1,1,
   ISYM=1,
  &END

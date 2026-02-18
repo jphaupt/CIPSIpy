@@ -1,0 +1,9 @@
+SYSTEM SUMMARY: LiH
+==============================
+Basis:       6-31gstar
+Orbitals:    15
+Electrons:   (1a, 1b)
+Determinants: 225
+Core Energy:  -6.902725748846 a.u.
+Ground State (Matrix): -8.002451327734 a.u.
+Ground State (Kernel): -8.002451327734 a.u.
