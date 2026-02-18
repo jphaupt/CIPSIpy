@@ -19,7 +19,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.fcidump import read_fcidump
-from cipsipy.hamiltonian import hamiltonian_element_spin
+from cipsipy.hamiltonian import hamiltonian_element
 
 
 # ============================================================================
@@ -76,7 +76,7 @@ def build_hamiltonian_matrix(determinants, n_orbitals, h_core, eri):
 
     for i, (det_i_alpha, det_i_beta) in enumerate(determinants):
         for j, (det_j_alpha, det_j_beta) in enumerate(determinants):
-            H[i, j] = hamiltonian_element_spin(
+            H[i, j] = hamiltonian_element(
                 det_i_alpha, det_i_beta, det_j_alpha, det_j_beta,
                 n_orbitals, h_core, eri
             )

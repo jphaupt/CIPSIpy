@@ -17,7 +17,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.fcidump import read_fcidump
-from cipsipy.hamiltonian import hamiltonian_element_spin
+from cipsipy.hamiltonian import hamiltonian_element
 
 ENERGY_TOLERANCE = 1e-7
 
@@ -69,7 +69,7 @@ class TestH2FCI:
                 det_j_alpha, det_j_beta = determinants[j]
 
                 H_matrix = H_matrix.at[i, j].set(
-                    hamiltonian_element_spin(
+                    hamiltonian_element(
                         det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri
                     )
                 )
@@ -122,7 +122,7 @@ class TestH2FCI:
             for j in range(n_det):
                 det_j_alpha, det_j_beta = determinants[j]
                 H_matrix = H_matrix.at[i, j].set(
-                    hamiltonian_element_spin(
+                    hamiltonian_element(
                         det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri
                     )
                 )
@@ -137,7 +137,7 @@ class TestH2FCI:
 
         # Test diagonal element for |00⟩
         det_alpha, det_beta = 0b1, 0b1  # Both in orbital 0
-        H_00 = hamiltonian_element_spin(
+        H_00 = hamiltonian_element(
             det_alpha, det_beta, det_alpha, det_beta, n_orb, h_core, eri
         )
 
