@@ -56,7 +56,7 @@ def discover_test_systems(assets_dir):
             if fcidump_path.exists() and matrix_path.exists() and e_gs_path.exists():
                 # Create relative path for display (e.g., "H2/sto-3g")
                 relative_path = f"{system_dir.name}/{subdir.name}"
-                systems.append((str(subdir), relative_path, str(fcidump_path), 
+                systems.append((str(subdir), relative_path, str(fcidump_path),
                                str(matrix_path), str(e_gs_path)))
 
     return sorted(systems, key=lambda x: x[1])
@@ -65,8 +65,8 @@ def discover_test_systems(assets_dir):
 def generate_determinants(n_orbitals, n_alpha, n_beta):
     """
     Generate all possible determinants for given number of electrons and orbitals.
-    
-    Uses PySCF's determinant ordering: lexicographic order of bit strings.
+
+    Lexicographic order of bit strings.
     For each alpha string (in lex order), iterate through all beta strings (in lex order).
 
     Args:
@@ -89,12 +89,12 @@ def generate_determinants(n_orbitals, n_alpha, n_beta):
         # Sort by integer value (lexicographic ordering of bit string)
         strings.sort()
         return strings
-    
-    # Generate strings in lexicographic order (PySCF convention)
+
+    # Generate strings in lexicographic order
     alpha_strings = make_strings_lexicographic(n_orbitals, n_alpha)
     beta_strings = make_strings_lexicographic(n_orbitals, n_beta)
-    
-    # PySCF ordering: outer loop alpha, inner loop beta
+
+    # outer loop alpha, inner loop beta
     determinants = []
     for det_alpha in alpha_strings:
         for det_beta in beta_strings:
@@ -122,7 +122,7 @@ def build_hamiltonian_matrix(determinants, n_orbitals, h_core, eri):
     for i, (det_i_alpha, det_i_beta) in enumerate(determinants):
         for j, (det_j_alpha, det_j_beta) in enumerate(determinants):
             H[i, j] = hamiltonian_element_spin(
-                det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, 
+                det_i_alpha, det_i_beta, det_j_alpha, det_j_beta,
                 n_orbitals, h_core, eri
             )
 
@@ -170,7 +170,7 @@ class TestFCISystems:
         n_elec, n_orb, spin, h_core, eri, e_nuc = read_fcidump(fcidump_path)
 
         # Determine number of alpha/beta electrons
-        # PySCF convention: spin = 2*S = N_alpha - N_beta
+        # spin = 2*S = N_alpha - N_beta
         n_alpha = (n_elec + spin) // 2
         n_beta = (n_elec - spin) // 2
 
@@ -210,8 +210,7 @@ class TestFCISystems:
         if len(offdiag_diff) > 0:
             print(f"  Max off-diagonal difference: {np.max(offdiag_diff):.2e}")
 
-        # Assert element-wise agreement with relaxed tolerance for numerical precision
-        tolerance = 5e-7
+        tolerance = 1e-7
         assert max_diff < tolerance, (
             f"Matrix elements differ by {max_diff:.2e}, "
             f"exceeds tolerance {tolerance:.2e}"
@@ -264,7 +263,7 @@ class TestFCISystems:
         print(f"  Difference: {abs(computed_energy - reference_energy):.2e} a.u.")
 
         # Assert energy agreement
-        energy_tolerance = 1e-6
+        energy_tolerance = 1e-7
         energy_diff = abs(computed_energy - reference_energy)
         assert energy_diff < energy_tolerance, (
             f"Ground state energy differs by {energy_diff:.2e}, "
@@ -277,7 +276,6 @@ class TestFCISystems:
         """Test that Hamiltonian matrix is Hermitian"""
         system_path, relative_path, fcidump_path, matrix_path, e_gs_path = system_info
 
-        # Read FCIDUMP
         n_elec, n_orb, spin, h_core, eri, e_nuc = read_fcidump(fcidump_path)
 
         # Determine number of alpha/beta electrons
@@ -315,7 +313,7 @@ class TestSystemCoverage:
             print(f"  - {name}")
 
         # Check we have the expected systems
-        expected_systems = ["H2/sto-3g", "HeH+/sto-3g", "H3+/3-21g", 
+        expected_systems = ["H2/sto-3g", "HeH+/sto-3g", "H3+/3-21g",
                            "Li/sto-3g", "LiH/6-31gstar"]
 
         for expected in expected_systems:
