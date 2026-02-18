@@ -12,6 +12,8 @@
 1. What will be the project outline?
 2. How will we know we have the right answer?
 
+We want to implement the CIPSI algorithm as described in Yann GARNIRON's thesis, first the unfiltered version.
+
 ---
 
 ## Solution: Project Outline

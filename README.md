@@ -1,4 +1,6 @@
-# SCIpy
+# CIPSIpy
+
+/ˈsɪpsɪpi/
 
 A simple CIPSI (Configuration Interaction using a Perturbative Selection made Iteratively) implementation in JAX.
 
