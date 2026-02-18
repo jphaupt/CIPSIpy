@@ -14,6 +14,57 @@ Separate integers are used for alpha and beta spin electrons.
 
 import jax.numpy as jnp
 
+# ============================================================================
+# Helper functions for bitwise operations
+# ============================================================================
+
+
+def is_orbital_occupied(det_int, orbital_idx):
+    """
+    Check if an orbital is occupied in a determinant.
+
+    Args:
+        det_int: Integer representation of determinant
+        orbital_idx: Orbital index to check
+
+    Returns:
+        True if orbital is occupied, False otherwise
+    """
+    return bool(det_int & (1 << orbital_idx))
+
+
+def set_orbital_bit(det_int, orbital_idx):
+    """
+    Set the bit for an orbital (mark as occupied).
+
+    Args:
+        det_int: Integer representation of determinant
+        orbital_idx: Orbital index to set
+
+    Returns:
+        New determinant with orbital bit set
+    """
+    return det_int | (1 << orbital_idx)
+
+
+def clear_orbital_bit(det_int, orbital_idx):
+    """
+    Clear the bit for an orbital (mark as unoccupied).
+
+    Args:
+        det_int: Integer representation of determinant
+        orbital_idx: Orbital index to clear
+
+    Returns:
+        New determinant with orbital bit cleared
+    """
+    return det_int & ~(1 << orbital_idx)
+
+
+# ============================================================================
+# Core determinant operations
+# ============================================================================
+
 
 def get_occupied_indices(det_int, n_orbitals):
     """
@@ -73,8 +124,13 @@ def create_determinant(occ_indices, n_orbitals):
     det = 0
     for idx in occ_indices:
         if idx < n_orbitals:
-            det |= 1 << idx
+            det = set_orbital_bit(det, idx)
     return det
+
+
+# ============================================================================
+# Annihilation and creation operators
+# ============================================================================
 
 
 def annihilate(det_int, orbital_idx):
@@ -92,11 +148,11 @@ def annihilate(det_int, orbital_idx):
         This returns 0 for invalid operations (Pauli exclusion principle)
     """
     # Check if orbital is occupied
-    if not (det_int & (1 << orbital_idx)):
+    if not is_orbital_occupied(det_int, orbital_idx):
         return 0  # Orbital not occupied - invalid operation
 
     # Remove electron
-    return det_int & ~(1 << orbital_idx)
+    return clear_orbital_bit(det_int, orbital_idx)
 
 
 def create(det_int, orbital_idx):
@@ -114,11 +170,16 @@ def create(det_int, orbital_idx):
         This returns 0 for invalid operations (Pauli exclusion principle)
     """
     # Check if orbital is unoccupied
-    if det_int & (1 << orbital_idx):
+    if is_orbital_occupied(det_int, orbital_idx):
         return 0  # Orbital already occupied - invalid operation
 
     # Add electron
-    return det_int | (1 << orbital_idx)
+    return set_orbital_bit(det_int, orbital_idx)
+
+
+# ============================================================================
+# Phase calculation and excitations
+# ============================================================================
 
 
 def phase_single(det_int, i, a):
@@ -140,9 +201,9 @@ def phase_single(det_int, i, a):
         Returns 0 if the excitation is invalid
     """
     # Check if i is occupied and a is unoccupied
-    if not (det_int & (1 << i)):
+    if not is_orbital_occupied(det_int, i):
         return 0
-    if det_int & (1 << a):
+    if is_orbital_occupied(det_int, a):
         return 0
 
     # Ensure i < a for counting
@@ -175,9 +236,10 @@ def apply_single_excitation(det_int, i, a):
     if phase == 0:
         return 0, 0
 
-    # Apply the excitation: remove from i, add to a
-    new_det = det_int & ~(1 << i)  # Remove electron from i
-    new_det = new_det | (1 << a)  # Add electron to a
+    # Apply the excitation using annihilate and create operators
+    # We can safely clear and set bits since phase already validated
+    new_det = clear_orbital_bit(det_int, i)
+    new_det = set_orbital_bit(new_det, a)
 
     return new_det, phase
 
@@ -200,9 +262,9 @@ def phase_double(det_int, i, j, a, b):
         Convention: i < j and a < b
     """
     # Check validity
-    if not (det_int & (1 << i)) or not (det_int & (1 << j)):
+    if not is_orbital_occupied(det_int, i) or not is_orbital_occupied(det_int, j):
         return 0  # Holes must be occupied
-    if (det_int & (1 << a)) or (det_int & (1 << b)):
+    if is_orbital_occupied(det_int, a) or is_orbital_occupied(det_int, b):
         return 0  # Particles must be unoccupied
     if i == j or a == b:
         return 0  # Can't excite same orbital twice
@@ -217,7 +279,7 @@ def phase_double(det_int, i, j, a, b):
     # Phase = (-1)^(sum of fermion hops)
 
     # Create a temporary determinant after first annihilation
-    temp_det = det_int & ~(1 << i)
+    temp_det = clear_orbital_bit(det_int, i)
 
     # Count electrons between i and j
     if j > i:
@@ -233,7 +295,7 @@ def phase_double(det_int, i, j, a, b):
     n_ja = count_electrons(temp_det & mask)
 
     # Create after first creation
-    temp_det = temp_det | (1 << a)
+    temp_det = set_orbital_bit(temp_det, a)
 
     # Count electrons between a and b in temp_det
     if b > a:
@@ -265,10 +327,11 @@ def apply_double_excitation(det_int, i, j, a, b):
     if phase == 0:
         return 0, 0
 
-    # Apply the excitation: remove from i and j, add to a and b
-    new_det = det_int & ~(1 << i)  # Remove electron from i
-    new_det = new_det & ~(1 << j)  # Remove electron from j
-    new_det = new_det | (1 << a)  # Add electron to a
-    new_det = new_det | (1 << b)  # Add electron to b
+    # Apply the excitation using helper functions
+    # We can safely clear and set bits since phase already validated
+    new_det = clear_orbital_bit(det_int, i)
+    new_det = clear_orbital_bit(new_det, j)
+    new_det = set_orbital_bit(new_det, a)
+    new_det = set_orbital_bit(new_det, b)
 
     return new_det, phase
