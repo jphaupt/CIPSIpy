@@ -46,7 +46,9 @@ def generate_h2_reference_matrix():
 
     # Off-diagonal elements
     # <00|H|11>: double excitation, both electrons 0->1
-    H[0, 3] = H[3, 0] = eri[0, 0, 1, 1]
+    # For alpha excitation 0->1 and beta excitation 0->1:
+    # Matrix element = (01|01) in chemist's notation = eri[0,1,0,1]
+    H[0, 3] = H[3, 0] = eri[0, 1, 0, 1]
 
     # <01|H|10>: exchange of alpha and beta
     H[1, 2] = H[2, 1] = eri[0, 1, 1, 0]
@@ -82,10 +84,12 @@ if __name__ == "__main__":
     print(f"(Electronic: {eigenvalues[0]:.10f} + Nuclear: {e_nuc:.10f})")
 
     # Save for validation tests
-    np.save("h2_pyscf_hamiltonian.npy", H_ref)
-    np.save("h2_pyscf_h1e.npy", h1e)
-    np.save("h2_pyscf_eri.npy", eri)
-    np.save("h2_pyscf_enuc.npy", np.array([e_nuc]))
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    np.save(os.path.join(script_dir, "h2_pyscf_hamiltonian.npy"), H_ref)
+    np.save(os.path.join(script_dir, "h2_pyscf_h1e.npy"), h1e)
+    np.save(os.path.join(script_dir, "h2_pyscf_eri.npy"), eri)
+    np.save(os.path.join(script_dir, "h2_pyscf_enuc.npy"), np.array([e_nuc]))
 
     print("\n" + "=" * 70)
     print("Reference data saved to:")

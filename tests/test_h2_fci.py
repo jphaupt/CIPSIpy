@@ -93,21 +93,12 @@ class TestH2FCI:
         print("\nGround state eigenvector:")
         print(eigenvectors[:, 0])
 
-        # Check that ground state energy is close to PySCF reference
-        # NOTE: There appears to be a discrepancy between our straightforward
-        # 4x4 Hamiltonian diagonalization and PySCF's FCI result.
-        # Our Hamiltonian matrix elements match PySCF's exactly, but the
-        # final energies differ. This may be due to differences in:
-        # - Orbital active space selection
-        # - Symmetry constraints or CSF basis
-        # - Internal PySCF optimizations
-        # For now, we verify our calculation is self-consistent and reasonable.
-
-        # Our calculation gives -1.358738 Hartree (unrestricted 4-determinant basis)
-        # PySCF's RHF-FCI gives -1.1372759436 Hartree
+        # Check that ground state energy matches PySCF reference
+        # The PySCF FCI result for H2 STO-3G is -1.1372759436 Hartree
+        pyscf_reference = -1.1372759436
         assert jnp.isclose(
-            E_ground, -1.358738, atol=1e-5
-        ), f"Ground state energy {E_ground:.6f} differs from expected -1.358738"
+            E_ground, pyscf_reference, atol=1e-5
+        ), f"Ground state energy {E_ground:.6f} differs from PySCF reference {pyscf_reference:.6f}"
 
         # Check that ground state has correct symmetry
         # For H2 singlet ground state, determinant 0 (both in orbital 0) should dominate

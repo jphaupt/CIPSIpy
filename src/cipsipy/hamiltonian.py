@@ -487,6 +487,11 @@ def _hamiltonian_double_opposite_spin(
         return 0.0
 
     # Two-electron integral (only Coulomb, no exchange between different spins)
-    element = eri[i_alpha, i_beta, a_alpha, a_beta]
+    # For opposite spin excitation i_α→a_α and i_β→a_β:
+    # Matrix element = (i_α a_α | i_β a_β) in chemist's notation
+    # which is eri[i_α, i_β, a_α, a_β] in standard storage
+    # BUT: Need to verify the correct index order for FCIDUMP format
+    # Correct: eri[i_alpha, a_alpha, i_beta, a_beta] for (i_α i_β | a_α a_β)
+    element = eri[i_alpha, a_alpha, i_beta, a_beta]
 
     return phase_alpha * phase_beta * element
