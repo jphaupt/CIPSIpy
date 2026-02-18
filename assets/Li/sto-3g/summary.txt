@@ -2,7 +2,7 @@ SYSTEM SUMMARY: Li
 ==============================
 Basis:       sto-3g
 Orbitals:    5
-Electrons:   (1a, 2b)
+Electrons:   (2a, 1b)
 Determinants: 50
 Core Energy:  0.000000000000 a.u.
 Ground State (Matrix): -7.315836552851 a.u.

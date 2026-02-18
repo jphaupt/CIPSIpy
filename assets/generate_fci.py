@@ -47,8 +47,8 @@ def run_master_benchmarks():
         norb, nelec = h1.shape[0], data['NELEC']
 
         # Determine determinant count for pspace
-        n_a = nelec // 2 if isinstance(nelec, int) else nelec[0]
-        n_b = nelec - n_a if isinstance(nelec, int) else nelec[1]
+        n_b = nelec // 2 if isinstance(nelec, int) else nelec[0]
+        n_a = nelec - n_b if isinstance(nelec, int) else nelec[1]
         n_det = int(comb(norb, n_a) * comb(norb, n_b))
 
         # pspace(..., np) returns (h_diag, h_matrix)
