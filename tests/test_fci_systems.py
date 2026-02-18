@@ -176,7 +176,7 @@ class TestFCISystems:
         print(f"  Diagonal:       {diag_diff:.2e}")
         print(f"  Off-diagonal:   {offdiag_diff:.2e}")
 
-        tolerance = 1e-7
+        tolerance = 1e-12
         assert max_diff < tolerance, (
             f"Matrix elements differ by {max_diff:.2e} > {tolerance:.2e}"
         )
@@ -200,7 +200,7 @@ class TestFCISystems:
         print(f"  Computed:  {e_gs_computed:.12f} a.u.")
         print(f"  Δ:         {abs(e_gs_computed - e_gs_ref):.2e} a.u.")
 
-        tolerance = 1e-7
+        tolerance = 1e-12
         energy_diff = abs(e_gs_computed - e_gs_ref)
         assert energy_diff < tolerance, (
             f"Energy differs by {energy_diff:.2e} > {tolerance:.2e}"
