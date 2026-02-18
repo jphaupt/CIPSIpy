@@ -75,6 +75,10 @@ def run_master_benchmarks():
             f.write(f"Ground State (Matrix): {e_matrix:.12f} a.u.\n")
             f.write(f"Ground State (Kernel): {e_kernel:.12f} a.u.\n")
 
+        energy_path = os.path.join(path, 'e_gs.txt')
+        with open(energy_path, "w") as f:
+            f.write(f"{e_kernel:.12f}\n")
+
         print(f"Success. Matrix {n_det}x{n_det} saved. Energy: {e_matrix:.8f}")
 
 if __name__ == "__main__":
