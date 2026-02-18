@@ -11,7 +11,7 @@ import pytest
 from pathlib import Path
 
 from cipsipy.fcidump import read_fcidump
-from cipsipy.hamiltonian import hamiltonian_element_spin
+from cipsipy.hamiltonian import hamiltonian_element
 
 # Path to validation data
 VALIDATION_DATA_DIR = Path(__file__).parent / "validation_data"
@@ -79,7 +79,7 @@ class TestPySCFValidation:
                 det_j_alpha, det_j_beta = determinants[j]
 
                 H_cipsipy = H_cipsipy.at[i, j].set(
-                    hamiltonian_element_spin(
+                    hamiltonian_element(
                         det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri
                     )
                 )
@@ -113,7 +113,7 @@ class TestPySCFValidation:
         print("\nDiagonal Element Comparison:")
         for i, (det, name) in enumerate(zip(determinants, det_names)):
             det_alpha, det_beta = det
-            H_cipsipy = hamiltonian_element_spin(
+            H_cipsipy = hamiltonian_element(
                 det_alpha, det_beta, det_alpha, det_beta, n_orb, h_core, eri
             )
             H_ref_val = H_ref[i, i]
@@ -141,7 +141,7 @@ class TestPySCFValidation:
                 det_i_alpha, det_i_beta = determinants[i]
                 det_j_alpha, det_j_beta = determinants[j]
 
-                H_cipsipy = hamiltonian_element_spin(
+                H_cipsipy = hamiltonian_element(
                     det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri
                 )
                 H_ref_val = H_ref[i, j]

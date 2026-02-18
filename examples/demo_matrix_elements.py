@@ -68,7 +68,7 @@ def main():
     print("\n5. Hamiltonian Matrix Elements (Simple H2-like System)")
     print("-" * 70)
 
-    # Simple 2-orbital, 2-electron system
+    # Simple 2-orbital, 2-electron system (1 alpha, 1 beta)
     n_orb = 2
     h_core = jnp.array([[-1.0, 0.1], [0.1, -0.5]])
 
@@ -76,12 +76,14 @@ def main():
     eri = eri.at[0, 0, 1, 1].set(0.2)
     eri = eri.at[1, 1, 0, 0].set(0.2)
 
-    det = 3  # Both orbitals occupied
+    # Spin-separated determinants: alpha electron in orbital 0, beta in orbital 1
+    det_alpha = 1  # 0b01: orbital 0 occupied
+    det_beta = 2   # 0b10: orbital 1 occupied
 
     # Diagonal element
-    H_diag = hamiltonian_element(det, det, n_orb, h_core, eri)
-    print(f"Determinant: {det} (binary: 0b{det:02b})")
-    print(f"Diagonal matrix element: H[{det},{det}] = {H_diag:.6f}")
+    H_diag = hamiltonian_element(det_alpha, det_beta, det_alpha, det_beta, n_orb, h_core, eri)
+    print(f"Determinant: α={det_alpha} (0b{det_alpha:02b}), β={det_beta} (0b{det_beta:02b})")
+    print(f"Diagonal matrix element: {H_diag:.6f}")
 
     print("\n" + "=" * 70)
     print("Demo completed successfully!")

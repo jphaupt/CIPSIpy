@@ -76,151 +76,7 @@ def get_excitation_operators(det_i, det_j):
     return holes, particles
 
 
-def hamiltonian_diagonal(det, n_orb, h_core, eri):
-    """
-    Calculate diagonal element <Det|H|Det>.
-
-    Args:
-        det: Determinant (integer)
-        n_orb: Number of orbitals
-        h_core: One-electron integrals [n_orb, n_orb]
-        eri: Two-electron integrals [n_orb, n_orb, n_orb, n_orb] (chemist's notation)
-
-    Returns:
-        Diagonal matrix element (float)
-
-    Formula:
-        E = Σ_i h[i,i] + 1/2 Σ_{i≠j} [(ii|jj) - (ij|ji)]
-        Chemist's notation: (pq|rs) = eri[p,q,r,s]
-    """
-    occ_mask = get_occupied_indices(det, n_orb)
-    occ_indices = jnp.where(occ_mask)[0]
-
-    if len(occ_indices) == 0:
-        return 0.0
-
-    one_electron = jnp.sum(h_core[occ_indices, occ_indices])
-
-    two_electron = 0.0
-    for i_idx in range(len(occ_indices)):
-        i = occ_indices[i_idx]
-        for j_idx in range(len(occ_indices)):
-            j = occ_indices[j_idx]
-            if i != j:
-                two_electron += 0.5 * (eri[i, i, j, j] - eri[i, j, j, i])
-
-    return one_electron + two_electron
-
-
-def hamiltonian_single(det_i, det_j, n_orb, h_core, eri):
-    """
-    Calculate single excitation element <Det_i|H|Det_j>.
-
-    Args:
-        det_i: Initial determinant (integer)
-        det_j: Final determinant (integer)
-        n_orb: Number of orbitals
-        h_core: One-electron integrals [n_orb, n_orb]
-        eri: Two-electron integrals [n_orb, n_orb, n_orb, n_orb] (chemist's notation)
-
-    Returns:
-        Single excitation matrix element (float)
-
-    Formula for i→a excitation:
-        H = h[i,a] + Σ_k [(ia|kk) - (ik|ka)]
-        where k runs over orbitals occupied in both determinants
-    """
-    holes, particles = get_excitation_operators(det_i, det_j)
-
-    if len(holes) != 1 or len(particles) != 1:
-        return 0.0
-
-    i = holes[0]
-    a = particles[0]
-
-    phase = phase_single(det_i, i, a)
-    if phase == 0:
-        return 0.0
-
-    element = h_core[i, a]
-
-    occ_i = get_occupied_indices(det_i, n_orb)
-    occ_j = get_occupied_indices(det_j, n_orb)
-    common_occ = occ_i & occ_j
-    common_indices = jnp.where(common_occ)[0]
-
-    for k in common_indices:
-        element += eri[i, a, k, k] - eri[i, k, k, a]
-
-    return phase * element
-
-
-def hamiltonian_double(det_i, det_j, n_orb, h_core, eri):
-    """
-    Calculate double excitation element <Det_i|H|Det_j>.
-
-    Args:
-        det_i: Initial determinant (integer)
-        det_j: Final determinant (integer)
-        n_orb: Number of orbitals
-        h_core: One-electron integrals [n_orb, n_orb]
-        eri: Two-electron integrals [n_orb, n_orb, n_orb, n_orb] (chemist's notation)
-
-    Returns:
-        Double excitation matrix element (float)
-
-    Formula for i,j→a,b excitation:
-        H = (ij|ab) in chemist's notation
-    """
-    holes, particles = get_excitation_operators(det_i, det_j)
-
-    if len(holes) != 2 or len(particles) != 2:
-        return 0.0
-
-    i, j = holes[0], holes[1]
-    a, b = particles[0], particles[1]
-
-    phase = phase_double(det_i, i, j, a, b)
-    if phase == 0:
-        return 0.0
-
-    element = eri[i, j, a, b]
-
-    return phase * element
-
-
-def hamiltonian_element(det_i, det_j, n_orb, h_core, eri):
-    """
-    Calculate Hamiltonian matrix element <Det_i|H|Det_j> using Slater-Condon rules.
-
-    Args:
-        det_i: First determinant (integer)
-        det_j: Second determinant (integer)
-        n_orb: Number of orbitals
-        h_core: One-electron integrals [n_orb, n_orb]
-        eri: Two-electron integrals [n_orb, n_orb, n_orb, n_orb] (chemist's notation)
-
-    Returns:
-        Hamiltonian matrix element (float)
-    """
-    exc_level = excitation_level(det_i, det_j)
-
-    if exc_level == 0:
-        return hamiltonian_diagonal(det_i, n_orb, h_core, eri)
-    elif exc_level == 1:
-        return hamiltonian_single(det_i, det_j, n_orb, h_core, eri)
-    elif exc_level == 2:
-        return hamiltonian_double(det_i, det_j, n_orb, h_core, eri)
-    else:
-        return 0.0
-
-
-# ============================================================================
-# Spin-separated determinant functions
-# ============================================================================
-
-
-def hamiltonian_element_spin(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri):
+def hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri):
     """
     Calculate Hamiltonian matrix element between spin-separated determinants.
 
@@ -239,34 +95,34 @@ def hamiltonian_element_spin(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n
     total_exc = exc_alpha + exc_beta
 
     if total_exc == 0:
-        return _hamiltonian_diagonal_spin(det_i_alpha, det_i_beta, n_orb, h_core, eri)
+        return _diagonal_element(det_i_alpha, det_i_beta, n_orb, h_core, eri)
     elif total_exc == 1:
         if exc_alpha == 1:
-            return _hamiltonian_single_spin(
+            return _single_excitation_element(
                 det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri, spin="alpha"
             )
         else:
-            return _hamiltonian_single_spin(
+            return _single_excitation_element(
                 det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri, spin="beta"
             )
     elif total_exc == 2:
         if exc_alpha == 2:
-            return _hamiltonian_double_same_spin(
+            return _double_same_spin_element(
                 det_i_alpha, det_j_alpha, n_orb, h_core, eri, spin="alpha"
             )
         elif exc_beta == 2:
-            return _hamiltonian_double_same_spin(
+            return _double_same_spin_element(
                 det_i_beta, det_j_beta, n_orb, h_core, eri, spin="beta"
             )
         else:
-            return _hamiltonian_double_opposite_spin(
+            return _double_opposite_spin_element(
                 det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri
             )
     else:
         return 0.0
 
 
-def _hamiltonian_diagonal_spin(det_alpha, det_beta, n_orb, h_core, eri):
+def _diagonal_element(det_alpha, det_beta, n_orb, h_core, eri):
     """
     Diagonal element for spin-separated determinants.
 
@@ -309,7 +165,7 @@ def _hamiltonian_diagonal_spin(det_alpha, det_beta, n_orb, h_core, eri):
     return energy
 
 
-def _hamiltonian_single_spin(
+def _single_excitation_element(
     det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri, spin="alpha"
 ):
     """
@@ -342,7 +198,7 @@ def _hamiltonian_single_spin(
     element = h_core[i, a]
 
     # Same spin interactions (Coulomb - Exchange)
-    occ_same = get_occupied_indices(det_j if spin == "alpha" else det_j, n_orb)
+    occ_same = get_occupied_indices(det_j, n_orb)
     occ_same_indices = jnp.where(occ_same)[0]
     for k in occ_same_indices:
         if k != a:
@@ -357,7 +213,7 @@ def _hamiltonian_single_spin(
     return phase * element
 
 
-def _hamiltonian_double_same_spin(det_i, det_j, n_orb, h_core, eri, spin="alpha"):
+def _double_same_spin_element(det_i, det_j, n_orb, h_core, eri, spin="alpha"):
     """
     Double excitation within the same spin.
 
@@ -380,7 +236,7 @@ def _hamiltonian_double_same_spin(det_i, det_j, n_orb, h_core, eri, spin="alpha"
     return phase * element
 
 
-def _hamiltonian_double_opposite_spin(
+def _double_opposite_spin_element(
     det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri
 ):
     """
