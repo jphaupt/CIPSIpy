@@ -88,7 +88,7 @@ def construct_A(sorted_alpha):
     A.append(len(sorted_alpha))
     return A
 
-def find_connected_internal_determinants_beta(dets_alpha, dets_beta):
+def find_connected_internal_determinants_beta(dets_alpha, dets_beta, A_indices):
     """
     algorithm 9 of the thesis - finds all single- and double-connected determinants
     in the list dets. This gives all beta single- and double-excitations (to get
@@ -99,7 +99,7 @@ def find_connected_internal_determinants_beta(dets_alpha, dets_beta):
     TODO consider a generator/on-the-fly version of this algorithm
     """
     connected_indices = []
-    A_indices = construct_A(dets_alpha)
+    # A_indices = construct_A(dets_alpha)
     # iterate over unique alpha blocks (A stores block starts and a sentinel)
     for a in range(len(A_indices) - 1):
         # all determinants sharing alpha part are in the range A[a], A[a+1)-1
@@ -107,6 +107,28 @@ def find_connected_internal_determinants_beta(dets_alpha, dets_beta):
             for b2 in range(b1 + 1, A_indices[a + 1]):
                 if get_excitation_level(dets_beta[b1], dets_beta[b2]) <= 2:
                     connected_indices.append((b1, b2))
+    return connected_indices
+
+def find_connected_internal_determinants_oppositespin(dets_alpha, dets_beta, A_indices):
+    """
+    algorithm 10 of garniron's thesis: sequential opposite-spin internal det
+    connectivity finder, i.e. find all alpha-beta double excitations
+
+    PRECONDITION: determinants are sorted in alpha-major order
+
+    NOTE this is a slow/sequential implementation
+
+    TODO parallelise via JAX (his algorithm 12 is good for CPUs)
+    """
+    connected_indices = []
+    for a1 in range(len(A_indices)-1):
+        for a2 in range(a1+1, len(A_indices)-1):
+            if get_excitation_level(dets_alpha[a1], dets_alpha[a2]) != 1:
+                continue
+            for b1 in range(A_indices[a1], A_indices[a1+1]):
+                for b2 in range(A_indices[a2], A_indices[a2+1]):
+                    if get_excitation_level(dets_beta[b1], dets_beta[b2]) == 1:
+                        connected_indices.append((b1, b2))
     return connected_indices
 
 def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:

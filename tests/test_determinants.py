@@ -20,6 +20,7 @@ from cipsipy.determinants import (
     create,
     create_determinant,
     find_connected_internal_determinants_beta,
+    find_connected_internal_determinants_oppositespin,
     generate_double_excited_determinants,
     generate_single_excited_determinants,
     get_occupied_indices,
@@ -324,12 +325,56 @@ class TestConnectedDeterminants:
         dets_alpha = [0b0001, 0b0001, 0b0001, 0b0010, 0b0010]
         dets_beta = [0b0011, 0b0101, 0b1100, 0b0011, 0b0110]
 
+        A_indices = construct_A(dets_alpha)
+
         connected_indices = find_connected_internal_determinants_beta(
-            dets_alpha, dets_beta
+            dets_alpha, dets_beta, A_indices
         )
 
         print(connected_indices)
         assert connected_indices == [(0, 1), (0, 2), (1, 2), (3, 4)]
+
+    def test_find_connected_internal_determinants_oppositespin(self):
+        """Finds opposite-spin connected pairs: alpha single + beta single."""
+        # two alpha blocks, single-connected in alpha
+        dets_alpha = [0b0011, 0b0011, 0b0101, 0b0101]
+        dets_beta = [0b0011, 0b0101, 0b0110, 0b1001]
+
+        A_indices = construct_A(dets_alpha)
+
+        connected_indices = find_connected_internal_determinants_oppositespin(
+            dets_alpha, dets_beta, A_indices
+        )
+
+        assert connected_indices == [(0, 2), (0, 3), (1, 2), (1, 3)]
+
+    def test_find_connected_internal_determinants_oppositespin_rejects_non_single_alpha(self):
+        """Returns no pairs when alpha blocks are not single-connected."""
+        # alpha excitation level between 0b0011 and 0b1100 is 2 (not opposite-spin connected)
+        dets_alpha = [0b0011, 0b0011, 0b1100, 0b1100]
+        dets_beta = [0b0011, 0b0101, 0b0110, 0b1001]
+
+        A_indices = construct_A(dets_alpha)
+
+        connected_indices = find_connected_internal_determinants_oppositespin(
+            dets_alpha, dets_beta, A_indices
+        )
+
+        assert connected_indices == []
+
+    def test_find_connected_internal_determinants_oppositespin_rejects_non_single_beta(self):
+        """Returns no pairs when beta determinants are not single-connected."""
+        dets_alpha = [0b0011, 0b0011, 0b0101, 0b0101]
+        # any cross-block pair has beta excitation level 2
+        dets_beta = [0b0011, 0b0011, 0b1100, 0b1100]
+
+        A_indices = construct_A(dets_alpha)
+
+        connected_indices = find_connected_internal_determinants_oppositespin(
+            dets_alpha, dets_beta, A_indices
+        )
+
+        assert connected_indices == []
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
