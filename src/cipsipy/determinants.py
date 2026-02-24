@@ -73,8 +73,41 @@ def clear_orbital_bit(det_int, orbital_idx):
 # Core determinant operations
 # ============================================================================
 
-# def find_connected_internal_determinants()
-# TODO see algorithms 9 and 10
+def construct_A(sorted_alpha):
+    """
+    helper function for finding connected internal determinants, called A in the
+    thesis by garniron
+
+    A[n] tells you the index of the nth unique appearance of a value in the sorted
+    array sorted_alpha
+    """
+    A = [0]
+    for i in range(1, len(sorted_alpha)):
+        if sorted_alpha[i] != sorted_alpha[i-1]:
+            A.append(i)
+    A.append(len(sorted_alpha))
+    return A
+
+def find_connected_internal_determinants_beta(dets_alpha, dets_beta):
+    """
+    algorithm 9 of the thesis - finds all single- and double-connected determinants
+    in the list dets. This gives all beta single- and double-excitations (to get
+    alpha, just swap the spins)
+
+    PRECONDITION: the arrays are sorted in alpha-major order
+
+    TODO consider a generator/on-the-fly version of this algorithm
+    """
+    connected_indices = []
+    A_indices = construct_A(dets_alpha)
+    # iterate over unique alpha blocks (A stores block starts and a sentinel)
+    for a in range(len(A_indices) - 1):
+        # all determinants sharing alpha part are in the range A[a], A[a+1)-1
+        for b1 in range(A_indices[a], A_indices[a + 1]):
+            for b2 in range(b1 + 1, A_indices[a + 1]):
+                if get_excitation_level(dets_beta[b1], dets_beta[b2]) <= 2:
+                    connected_indices.append((b1, b2))
+    return connected_indices
 
 def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:
     """

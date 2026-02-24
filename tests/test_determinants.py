@@ -15,9 +15,11 @@ from cipsipy.determinants import (
     annihilate,
     apply_double_excitation,
     apply_single_excitation,
+    construct_A,
     count_electrons,
     create,
     create_determinant,
+    find_connected_internal_determinants_beta,
     generate_double_excited_determinants,
     generate_single_excited_determinants,
     get_occupied_indices,
@@ -295,6 +297,39 @@ class TestDeterminantSorting:
 
         assert alpha_sorted.tolist() == [5]
         assert beta_sorted.tolist() == [2]
+
+
+class TestConnectedDeterminants:
+    """Test helper/index construction and connected determinant search."""
+
+    def test_construct_A_with_repeated_blocks(self):
+        """construct_A returns start indices of each unique alpha block plus sentinel."""
+        sorted_alpha = [1, 1, 2, 2, 2, 5]
+
+        a_indices = construct_A(sorted_alpha)
+
+        assert a_indices == [0, 2, 5, 6]
+
+    def test_construct_A_all_unique(self):
+        """construct_A handles fully unique alpha lists."""
+        sorted_alpha = [1, 2, 3]
+
+        a_indices = construct_A(sorted_alpha)
+
+        assert a_indices == [0, 1, 2, 3]
+
+    def test_find_connected_internal_determinants_beta(self):
+        """Finds determinant pairs with <=2 beta excitation level in each alpha block."""
+        # already alpha-major sorted
+        dets_alpha = [0b0001, 0b0001, 0b0001, 0b0010, 0b0010]
+        dets_beta = [0b0011, 0b0101, 0b1100, 0b0011, 0b0110]
+
+        connected_indices = find_connected_internal_determinants_beta(
+            dets_alpha, dets_beta
+        )
+
+        print(connected_indices)
+        assert connected_indices == [(0, 1), (0, 2), (1, 2), (3, 4)]
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
