@@ -18,6 +18,14 @@ import jax.numpy as jnp
 # Helper functions for bitwise operations
 # ============================================================================
 
+def get_excitation_level(det_i, det_j):
+    """
+    get excitation level between bitstring-represented determinants det_i and det_j
+    i.e. 1/2 ||I⊕J||
+    """
+    xor_det = det_i ^ det_j
+    return count_electrons(xor_det) // 2
+
 
 def is_orbital_occupied(det_int, orbital_idx):
     """
@@ -64,6 +72,80 @@ def clear_orbital_bit(det_int, orbital_idx):
 # ============================================================================
 # Core determinant operations
 # ============================================================================
+
+# def find_connected_internal_determinants()
+# TODO see algorithms 9 and 10
+
+def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:
+    """
+    algorithm 11 of the thesis implemented "manually" -- no fancy JAX business
+    i.e. it is a standard recursive implementation of the radix sort algorithm
+    works for nonnegative integers
+
+    Args:
+        dets: The list of integers (determinants) to sort
+        i: The index of the bit we are currently inspecting (e.g., 63 down to 0)
+        keys: optional list of keys (use None for standard argsort -- used for recursion)
+
+    Returns:
+        sorted_dets: the sorted list (dets)
+        sorted_keys: original indices, sorted
+
+    note: to sort arbitrary 64-bit integers, use i = 63
+
+    TODO: speed up with parallelism/jax
+    """
+    # initialize keys on first call
+    if keys is None:
+        keys = list(range(len(dets)))
+
+    # base case - all bits have been checked or no elements ([] is sorted)
+    if i < 0 or not dets:
+        return dets, keys
+
+    dets0 = []  # pigeonhole for bit == 0
+    dets1 = []  # pigeonhole for bit == 1
+    keys0 = []
+    keys1 = []
+
+    # check the i-th bit of every determinant in dets
+    for d, k in zip(dets, keys):
+        if is_orbital_occupied(d, i):
+            dets1.append(d)
+            keys1.append(k)
+        else:
+            dets0.append(d)
+            keys0.append(k)
+
+    dets0_sorted, keys0_sorted = radix_sort_rec(dets0, i - 1, keys0)
+    dets1_sorted, keys1_sorted = radix_sort_rec(dets1, i - 1, keys1)
+
+    return dets0_sorted + dets1_sorted, keys0_sorted + keys1_sorted
+
+def sort_determinants(dets_alpha, dets_beta, norb, sort_alg=radix_sort_rec):
+    """
+    sorts determinants dets_alpha, dets_beta in alpha-major order, given a
+    number of spatial orbitals norb, using the sorting algorithm
+    """
+    # pass dets_alpha as keys so it follows dets_beta's movement
+    beta_sorted, alpha_carried = sort_alg(dets_beta, norb - 1, dets_alpha)
+
+    # then primary key
+    final_alpha, final_beta = sort_alg(alpha_carried, norb - 1, beta_sorted)
+
+    return final_alpha, final_beta
+
+
+def sort_determinants_jax(dets_alpha, dets_beta, norb):
+    """
+    Sorts determinants in alpha-major order using JAX built-ins.
+    lexsort( (secondary_key, primary_key) )
+    """
+    # lexsort sorts by the last array in the tuple first.
+    # To get alpha-major (alpha first, then beta), we pass (beta, alpha).
+    idx = jnp.lexsort((dets_beta, dets_alpha))
+
+    return dets_alpha[idx], dets_beta[idx]
 
 
 def get_occupied_indices(det_int, n_orbitals):
@@ -242,6 +324,70 @@ def apply_single_excitation(det_int, i, a):
     new_det = set_orbital_bit(new_det, a)
 
     return new_det, phase
+
+
+def generate_single_excited_determinants(det_int, n_orbitals):
+    """Generate all single-excited determinants
+
+    Args:
+        det_int: Integer representation of determinant
+        n_orbitals: Number of spatial orbitals
+
+    Returns:
+        List of integer determinants reachable by valid single excitations.
+    """
+    occupied = []
+    virtual = []
+    for orbital in range(n_orbitals):
+        if is_orbital_occupied(det_int, orbital):
+            occupied.append(orbital)
+        else:
+            virtual.append(orbital)
+
+    excited_dets = []
+    for i in occupied:
+        for a in virtual:
+            new_det = clear_orbital_bit(det_int, i)
+            new_det = set_orbital_bit(new_det, a)
+            excited_dets.append(new_det)
+
+    return excited_dets
+
+
+def generate_double_excited_determinants(det_int, n_orbitals):
+    """Generate all double-excited determinants
+
+    Args:
+        det_int: Integer representation of determinant
+        n_orbitals: Number of spatial orbitals
+
+    Returns:
+        List of integer determinants reachable by valid double excitations.
+    """
+    occupied = []
+    virtual = []
+    for orbital in range(n_orbitals):
+        if is_orbital_occupied(det_int, orbital):
+            occupied.append(orbital)
+        else:
+            virtual.append(orbital)
+
+    excited_dets = []
+    for occ_i in range(len(occupied)):
+        i = occupied[occ_i]
+        for occ_j in range(occ_i + 1, len(occupied)):
+            j = occupied[occ_j]
+            for vir_a in range(len(virtual)):
+                a = virtual[vir_a]
+                for vir_b in range(vir_a + 1, len(virtual)):
+                    b = virtual[vir_b]
+                    new_det = clear_orbital_bit(det_int, i)
+                    new_det = clear_orbital_bit(new_det, j)
+                    new_det = set_orbital_bit(new_det, a)
+                    new_det = set_orbital_bit(new_det, b)
+                    excited_dets.append(new_det)
+
+    return excited_dets
 
 
 def phase_double(det_int, i, j, a, b):

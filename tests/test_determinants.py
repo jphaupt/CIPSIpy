@@ -18,9 +18,14 @@ from cipsipy.determinants import (
     count_electrons,
     create,
     create_determinant,
+    generate_double_excited_determinants,
+    generate_single_excited_determinants,
     get_occupied_indices,
     phase_double,
     phase_single,
+    radix_sort_rec,
+    sort_determinants,
+    sort_determinants_jax,
 )
 
 
@@ -204,6 +209,92 @@ class TestDoubleExcitations:
         # orbital 1 is both a hole and particle - invalid
         assert new_det == 0
 
+
+class TestExcitationGenerators:
+    """Test generation of single/double excited determinants."""
+
+    def test_generate_single_excited_determinants(self):
+        """Singles count and targets are correct."""
+        det = 0b0011  # occupied {0,1}
+        n_orb = 4
+
+        singles = generate_single_excited_determinants(det, n_orb)
+        targets = set(singles)
+
+        # n_occ * n_virt = 2 * 2 = 4 singles
+        assert len(singles) == 4
+        assert targets == {0b0110, 0b1010, 0b0101, 0b1001}
+
+    def test_generate_double_excited_determinants(self):
+        """Doubles count and target are correct."""
+        det = 0b0011  # occupied {0,1}
+        n_orb = 4
+
+        doubles = generate_double_excited_determinants(det, n_orb)
+
+        # C(2,2) * C(2,2) = 1 double
+        assert len(doubles) == 1
+        assert doubles[0] == 0b1100
+
+        det = 0b01011
+        n_orb = 5
+
+        doubles = generate_double_excited_determinants(det, n_orb)
+        targets = set(doubles)
+
+        assert targets == {0b10110, 0b10101, 0b11100}
+
+
+class TestDeterminantSorting:
+    """Test determinant sorting utilities."""
+
+    def test_radix_sort_rec_returns_sorted_values_and_indices(self):
+        """radix_sort_rec sorts values and carries original indices."""
+        dets = [6, 3, 1, 4]  # unsorted
+
+        sorted_dets, sorted_idx = radix_sort_rec(dets, i=2)
+
+        assert sorted_dets == [1, 3, 4, 6]
+        assert sorted_idx == [2, 1, 3, 0]
+
+    def test_radix_sort_rec_empty_input(self):
+        """Empty input is handled without error."""
+        sorted_dets, sorted_idx = radix_sort_rec([], i=3)
+
+        assert sorted_dets == []
+        assert sorted_idx == []
+
+    def test_sort_determinants_alpha_major_order(self):
+        """sort_determinants orders by alpha first, then beta."""
+        dets_alpha = [3, 1, 1, 2, 3]
+        dets_beta = [2, 3, 1, 0, 1]
+
+        alpha_sorted, beta_sorted = sort_determinants(dets_alpha, dets_beta, norb=3)
+
+        expected_pairs = sorted(zip(dets_alpha, dets_beta), key=lambda x: (x[0], x[1]))
+        assert list(zip(alpha_sorted, beta_sorted)) == expected_pairs
+
+    def test_sort_determinants_jax_matches_python_sort(self):
+        """JAX sort path gives same alpha-major ordering as Python reference."""
+        dets_alpha = jnp.array([3, 1, 1, 2, 3])
+        dets_beta = jnp.array([2, 3, 1, 0, 1])
+
+        alpha_sorted, beta_sorted = sort_determinants_jax(dets_alpha, dets_beta, norb=3)
+
+        expected_pairs = sorted(
+            zip(dets_alpha.tolist(), dets_beta.tolist()), key=lambda x: (x[0], x[1])
+        )
+        assert list(zip(alpha_sorted.tolist(), beta_sorted.tolist())) == expected_pairs
+
+    def test_sort_determinants_jax_handles_single_element(self):
+        """Single-element inputs are returned unchanged."""
+        dets_alpha = jnp.array([5])
+        dets_beta = jnp.array([2])
+
+        alpha_sorted, beta_sorted = sort_determinants_jax(dets_alpha, dets_beta, norb=3)
+
+        assert alpha_sorted.tolist() == [5]
+        assert beta_sorted.tolist() == [2]
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

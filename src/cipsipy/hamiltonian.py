@@ -19,11 +19,40 @@ import jax.numpy as jnp
 
 from cipsipy.determinants import (
     count_electrons,
+    generate_double_excited_determinants,
+    generate_single_excited_determinants,
     get_occupied_indices,
     phase_double,
     phase_single,
 )
 
+
+def hamiltonian_vector_product(dets_alpha, dets_beta, norb, h_core, eri):
+    """Build a Hamiltonian matrix-vector product
+
+    This function binds determinant lists and integrals, and returns a callable
+    ``matvec(coeffs)`` that computes ``sigma = H @ coeffs`` in the product
+    basis (Cartesian product of alpha and beta determinants) without explicitly
+    building the dense Hamiltonian matrix.
+
+    Args:
+        dets_alpha: Sequence of alpha-spin determinants (bitstring integers)
+        dets_beta: Sequence of beta-spin determinants (bitstring integers)
+        norb: Number of spatial orbitals
+        h_core: One-electron integrals [norb, norb]
+        eri: Two-electron integrals [norb, norb, norb, norb]
+
+    Returns:
+        Callable matvec(coeffs) -> sigma where coeffs can be shape
+        (n_alpha*n_beta,) or (n_alpha, n_beta).
+    """
+    print("TODO")
+
+
+
+# ===========================================================================
+# Bitstring helper functions
+# ===========================================================================
 
 def excitation_level(det_i, det_j):
     """
@@ -75,6 +104,10 @@ def get_excitation_operators(det_i, det_j):
 
     return holes, particles
 
+
+# ============================================================================
+# Matrix element evaluation routines
+# ============================================================================
 
 def hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri):
     """
