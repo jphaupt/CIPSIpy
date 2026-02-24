@@ -123,7 +123,9 @@ def find_connected_internal_determinants_oppositespin(dets_alpha, dets_beta, A_i
     connected_indices = []
     for a1 in range(len(A_indices)-1):
         for a2 in range(a1+1, len(A_indices)-1):
-            if get_excitation_level(dets_alpha[a1], dets_alpha[a2]) != 1:
+            alpha_1 = dets_alpha[A_indices[a1]]
+            alpha_2 = dets_alpha[A_indices[a2]]
+            if get_excitation_level(alpha_1, alpha_2) != 1:
                 continue
             for b1 in range(A_indices[a1], A_indices[a1+1]):
                 for b2 in range(A_indices[a2], A_indices[a2+1]):
