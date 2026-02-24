@@ -30,10 +30,8 @@ from cipsipy.determinants import (
 def hamiltonian_vector_product(dets_alpha, dets_beta, norb, h_core, eri):
     """Build a Hamiltonian matrix-vector product
 
-    This function binds determinant lists and integrals, and returns a callable
-    ``matvec(coeffs)`` that computes ``sigma = H @ coeffs`` in the product
-    basis (Cartesian product of alpha and beta determinants) without explicitly
-    building the dense Hamiltonian matrix.
+    This function calculates the product H @ dets without explicitly constructing
+    the Hamiltonian matrix H
 
     Args:
         dets_alpha: Sequence of alpha-spin determinants (bitstring integers)
@@ -41,11 +39,13 @@ def hamiltonian_vector_product(dets_alpha, dets_beta, norb, h_core, eri):
         norb: Number of spatial orbitals
         h_core: One-electron integrals [norb, norb]
         eri: Two-electron integrals [norb, norb, norb, norb]
-
-    Returns:
-        Callable matvec(coeffs) -> sigma where coeffs can be shape
-        (n_alpha*n_beta,) or (n_alpha, n_beta).
     """
+    # first sort dets (alpha-major)
+    # get beta excitations
+    # get opposite-spin excitations
+    # sort beta-major
+    # get alpha excitations
+    # using the generator version of these functions, add their contributions to Hv
     print("TODO")
 
 
