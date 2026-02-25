@@ -21,6 +21,10 @@ from cipsipy.determinants import (
     count_electrons,
     generate_double_excited_determinants,
     generate_single_excited_determinants,
+    find_connected_internal_determinants_beta,
+    find_connected_internal_determinants_oppositespin,
+    construct_A,
+    sort_wavefunction,
     get_occupied_indices,
     phase_double,
     phase_single,
@@ -41,6 +45,10 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri)
 
     TODO organise this data into a Wavefunction class -- but be careful with JAX (you need PyTree I think)
 
+    TODO parallelise via JAX -- right now uses some ugly for loops!
+
+    Recall (Hv)_i = ∑_j H_ij c_j
+
     Args:
         coeffs: coefficients for
         dets_alpha: Sequence of alpha-spin determinants (bitstring integers)
@@ -49,14 +57,41 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri)
         h_core: One-electron integrals [norb, norb]
         eri: Two-electron integrals [norb, norb, norb, norb]
     """
-    # first do diagonal
+    ndet = len(coeffs)
+    v_out = jnp.zeros(ndet) # return value, Hv
+
+    # first do diagonal contribution: H_ii * c_i
+    for i in range(len(coeffs)):
+        # TODO parallelise with vmap
+        h_ii = _diagonal_element(dets_alpha[i], dets_beta[i], norb, h_core, eri)
+        v_out = v_out.at[i].add(h_ii * coeffs[i])
+
     # first sort dets (alpha-major)
-    # get beta excitations
-    # get opposite-spin excitations
+    s_c, s_da, s_db, s_idx = sort_wavefunction(coeffs, dets_alpha, dets_beta, norb)
+    A_array_alpha = construct_A(s_da)
+
+    # get beta excitations and add to v_out
+    for i, j in find_connected_internal_determinants_beta(s_da, s_db, A_array_alpha):
+        h_ij = hamiltonian_element(s_da[i], s_db[i], s_da[j], s_db[j], norb, h_core, eri)
+        v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
+        v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
+
+    # get opposite-spin excitations and add to v_out
+    for i, j in find_connected_internal_determinants_oppositespin(s_da, s_db, A_array_alpha):
+        h_ij = hamiltonian_element(s_da[i], s_db[i], s_da[j], s_db[j], norb, h_core, eri)
+        v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
+        v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
+
     # sort beta-major
-    # get alpha excitations
-    # using the generator version of these functions, add their contributions to Hv
-    print("TODO")
+    s_c, s_db, s_da, s_idx = sort_wavefunction(coeffs, dets_beta, dets_alpha, norb)
+    A_array_beta = construct_A(s_db)
+
+    # get alpha excitations and add to v_out
+    for i, j in find_connected_internal_determinants_beta(s_db, s_da, A_array_beta):
+        h_ij = hamiltonian_element(s_db[i], s_da[i], s_db[j], s_da[j], norb, h_core, eri)
+        v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
+        v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
+    return v_out
 
 
 
@@ -132,6 +167,8 @@ def hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb,
 
     Returns:
         Hamiltonian matrix element (float)
+
+    TODO JAX optimisation
     """
     exc_alpha = excitation_level(det_i_alpha, det_j_alpha)
     exc_beta = excitation_level(det_i_beta, det_j_beta)
@@ -174,6 +211,8 @@ def _diagonal_element(det_alpha, det_beta, n_orb, h_core, eri):
             + Σ_{i_α,j_β} (ii|jj)
 
     Chemist's notation: (pq|rs) = eri[p,q,r,s]
+
+    TODO JAX optimisation
     """
     occ_alpha = get_occupied_indices(det_alpha, n_orb)
     occ_beta = get_occupied_indices(det_beta, n_orb)

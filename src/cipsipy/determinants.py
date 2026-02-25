@@ -181,6 +181,11 @@ def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:
 
 def sort_wavefunction(coeffs, dets_alpha, dets_beta, norb, sort_alg=radix_sort_rec):
     """
+    TODO since we are using recursive radix right now, it does not work well with
+        JAX, so we coerce JAX arrays to Python lists, then convert back to JAX arrays
+        This is obviously not a great long-term solution, and we need to use JAX
+        parallelism
+
     Sorts the wavefunction in alpha-major order, given a number of spatial
     orbitals norb, using the sorting algorithm sort_alg.
     The coeffs, dets_alpha, and dets_beta are all reordered so they
@@ -189,29 +194,33 @@ def sort_wavefunction(coeffs, dets_alpha, dets_beta, norb, sort_alg=radix_sort_r
     if len(coeffs) == 0:
         raise ValueError("Wavefunction cannot be empty.")
 
-    # pass dets_alpha as keys so it follows dets_beta's movement
-    payload = list(zip(dets_alpha, coeffs))
-    beta_sorted, payload_carried = sort_alg(dets_beta, norb - 1, payload)
+    coeffs = jnp.asarray(coeffs)
+    dets_alpha = jnp.asarray(dets_alpha)
+    dets_beta = jnp.asarray(dets_beta)
 
-    alpha_carried, coeffs_carried = zip(*payload_carried)
+    # pass dets_alpha as keys so it follows dets_beta's movement
+    _, keys = sort_alg(dets_beta.tolist(), norb - 1)
+
+    keys_array = jnp.asarray(keys, dtype=jnp.int32)
+    alpha_sorted = dets_alpha[keys_array]
 
     # then primary key
-    payload_2 = list(zip(beta_sorted, coeffs_carried))
-    final_alpha, payload_2_carried = sort_alg(alpha_carried, norb - 1, payload_2)
-    final_beta, final_coeffs = zip(*payload_2_carried)
+    final_alpha, final_keys = sort_alg(alpha_sorted.tolist(), norb - 1, keys)
+    final_keys_array = jnp.asarray(final_keys, dtype=jnp.int32)
+    final_beta = dets_beta[final_keys_array]
+    final_coeffs = coeffs[final_keys_array]
 
-    return jnp.array(final_coeffs), jnp.array(final_alpha), jnp.array(final_beta)
+    return jnp.array(final_coeffs), jnp.array(final_alpha), jnp.array(final_beta), final_keys
 
-def sort_determinants_jax(dets_alpha, dets_beta, norb):
+def sort_wavefunction_jax(coeffs, dets_alpha, dets_beta, norb):
     """
-    Sorts determinants in alpha-major order using JAX built-ins.
+    Sorts determinants and coeffs in alpha-major order using JAX built-ins.
     lexsort( (secondary_key, primary_key) )
     """
     # lexsort sorts by the last array in the tuple first.
     # To get alpha-major (alpha first, then beta), we pass (beta, alpha).
     idx = jnp.lexsort((dets_beta, dets_alpha))
-
-    return dets_alpha[idx], dets_beta[idx]
+    return coeffs[idx], dets_alpha[idx], dets_beta[idx], idx
 
 
 def get_occupied_indices(det_int, n_orbitals):

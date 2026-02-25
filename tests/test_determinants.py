@@ -28,7 +28,7 @@ from cipsipy.determinants import (
     phase_single,
     radix_sort_rec,
     sort_wavefunction,
-    sort_determinants_jax,
+    sort_wavefunction_jax,
 )
 
 
@@ -273,8 +273,8 @@ class TestDeterminantSorting:
         dets_alpha = [3, 1, 1, 2, 3]
         dets_beta = [2, 3, 1, 0, 1]
 
-        coeffs_sorted, alpha_sorted, beta_sorted = sort_wavefunction(
-            coeffs, dets_alpha, dets_beta, norb=3
+        coeffs_sorted, alpha_sorted, beta_sorted, _ = sort_wavefunction(
+            coeffs, dets_alpha, dets_beta, norb=5
         )
 
         expected = sorted(zip(dets_alpha, dets_beta, coeffs), key=lambda x: (x[0], x[1], x[2]))
@@ -295,8 +295,8 @@ class TestDeterminantSorting:
         dets_alpha = jnp.array([2, 1, 2, 1])
         dets_beta = jnp.array([0, 3, 1, 2])
 
-        coeffs_sorted, alpha_sorted, beta_sorted = sort_wavefunction(
-            coeffs, dets_alpha, dets_beta, norb=3
+        coeffs_sorted, alpha_sorted, beta_sorted, _ = sort_wavefunction(
+            coeffs, dets_alpha, dets_beta, norb=4
         )
 
         expected = sorted(
@@ -321,25 +321,44 @@ class TestDeterminantSorting:
         with pytest.raises(ValueError, match="Wavefunction cannot be empty"):
             sort_wavefunction([], [], [], norb=3)
 
-    def test_sort_determinants_jax_matches_python_sort(self):
-        """JAX sort path gives same alpha-major ordering as Python reference."""
+    def test_sort_wavefunction_jax_matches_python_sort(self):
+        """JAX sort path gives same alpha-major ordering and pairing as reference."""
+        coeffs = jnp.array([0.3, -0.1, 0.7, 0.2, -0.4])
         dets_alpha = jnp.array([3, 1, 1, 2, 3])
         dets_beta = jnp.array([2, 3, 1, 0, 1])
 
-        alpha_sorted, beta_sorted = sort_determinants_jax(dets_alpha, dets_beta, norb=3)
-
-        expected_pairs = sorted(
-            zip(dets_alpha.tolist(), dets_beta.tolist()), key=lambda x: (x[0], x[1])
+        coeffs_sorted, alpha_sorted, beta_sorted, _ = sort_wavefunction_jax(
+            coeffs, dets_alpha, dets_beta, norb=3
         )
-        assert list(zip(alpha_sorted.tolist(), beta_sorted.tolist())) == expected_pairs
 
-    def test_sort_determinants_jax_handles_single_element(self):
+        expected = sorted(
+            zip(dets_alpha.tolist(), dets_beta.tolist(), coeffs.tolist()),
+            key=lambda x: (x[0], x[1]),
+        )
+        expected_alpha = [a for a, _, _ in expected]
+        expected_beta = [b for _, b, _ in expected]
+        expected_coeffs = [c for _, _, c in expected]
+
+        assert alpha_sorted.tolist() == expected_alpha
+        assert beta_sorted.tolist() == expected_beta
+        assert jnp.allclose(
+            coeffs_sorted,
+            jnp.array(expected_coeffs, dtype=coeffs_sorted.dtype),
+            rtol=0.0,
+            atol=jnp.finfo(coeffs_sorted.dtype).eps,
+        )
+
+    def test_sort_wavefunction_jax_handles_single_element(self):
         """Single-element inputs are returned unchanged."""
+        coeffs = jnp.array([1.5])
         dets_alpha = jnp.array([5])
         dets_beta = jnp.array([2])
 
-        alpha_sorted, beta_sorted = sort_determinants_jax(dets_alpha, dets_beta, norb=3)
+        coeffs_sorted, alpha_sorted, beta_sorted, _ = sort_wavefunction_jax(
+            coeffs, dets_alpha, dets_beta, norb=3
+        )
 
+        assert coeffs_sorted.tolist() == [1.5]
         assert alpha_sorted.tolist() == [5]
         assert beta_sorted.tolist() == [2]
 
