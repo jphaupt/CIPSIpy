@@ -157,7 +157,7 @@ def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:
         keys = list(range(len(dets)))
 
     # base case - all bits have been checked or no elements ([] is sorted)
-    if i < 0 or not dets:
+    if i < 0 or len(dets) == 0:
         return dets, keys
 
     dets0 = []  # pigeonhole for bit == 0
@@ -179,19 +179,28 @@ def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:
 
     return dets0_sorted + dets1_sorted, keys0_sorted + keys1_sorted
 
-def sort_determinants(dets_alpha, dets_beta, norb, sort_alg=radix_sort_rec):
+def sort_wavefunction(coeffs, dets_alpha, dets_beta, norb, sort_alg=radix_sort_rec):
     """
-    sorts determinants dets_alpha, dets_beta in alpha-major order, given a
-    number of spatial orbitals norb, using the sorting algorithm
+    Sorts the wavefunction in alpha-major order, given a number of spatial
+    orbitals norb, using the sorting algorithm sort_alg.
+    The coeffs, dets_alpha, and dets_beta are all reordered so they
+    remain physically consistent.
     """
+    if len(coeffs) == 0:
+        raise ValueError("Wavefunction cannot be empty.")
+
     # pass dets_alpha as keys so it follows dets_beta's movement
-    beta_sorted, alpha_carried = sort_alg(dets_beta, norb - 1, dets_alpha)
+    payload = list(zip(dets_alpha, coeffs))
+    beta_sorted, payload_carried = sort_alg(dets_beta, norb - 1, payload)
+
+    alpha_carried, coeffs_carried = zip(*payload_carried)
 
     # then primary key
-    final_alpha, final_beta = sort_alg(alpha_carried, norb - 1, beta_sorted)
+    payload_2 = list(zip(beta_sorted, coeffs_carried))
+    final_alpha, payload_2_carried = sort_alg(alpha_carried, norb - 1, payload_2)
+    final_beta, final_coeffs = zip(*payload_2_carried)
 
-    return final_alpha, final_beta
-
+    return jnp.array(final_coeffs), jnp.array(final_alpha), jnp.array(final_beta)
 
 def sort_determinants_jax(dets_alpha, dets_beta, norb):
     """

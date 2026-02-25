@@ -27,7 +27,7 @@ from cipsipy.determinants import (
     phase_double,
     phase_single,
     radix_sort_rec,
-    sort_determinants,
+    sort_wavefunction,
     sort_determinants_jax,
 )
 
@@ -269,13 +269,57 @@ class TestDeterminantSorting:
 
     def test_sort_determinants_alpha_major_order(self):
         """sort_determinants orders by alpha first, then beta."""
+        coeffs = [0.3, -0.1, 0.7, 0.2, -0.4]
         dets_alpha = [3, 1, 1, 2, 3]
         dets_beta = [2, 3, 1, 0, 1]
 
-        alpha_sorted, beta_sorted = sort_determinants(dets_alpha, dets_beta, norb=3)
+        coeffs_sorted, alpha_sorted, beta_sorted = sort_wavefunction(
+            coeffs, dets_alpha, dets_beta, norb=3
+        )
 
-        expected_pairs = sorted(zip(dets_alpha, dets_beta), key=lambda x: (x[0], x[1]))
+        expected = sorted(zip(dets_alpha, dets_beta, coeffs), key=lambda x: (x[0], x[1], x[2]))
+        expected_pairs = [(a, b) for a, b, _ in expected]
+        expected_coeffs = [c for _, _, c in expected]
+
         assert list(zip(alpha_sorted, beta_sorted)) == expected_pairs
+        assert jnp.allclose(
+            coeffs_sorted,
+            jnp.array(expected_coeffs, dtype=coeffs_sorted.dtype),
+            rtol=0.0,
+            atol=jnp.finfo(coeffs_sorted.dtype).eps,
+        )
+
+    def test_sort_wavefunction_keeps_coefficient_pairing(self):
+        """sort_wavefunction reorders coefficients consistently with determinant sort."""
+        coeffs = jnp.array([1.0, 2.0, 3.0, 4.0])
+        dets_alpha = jnp.array([2, 1, 2, 1])
+        dets_beta = jnp.array([0, 3, 1, 2])
+
+        coeffs_sorted, alpha_sorted, beta_sorted = sort_wavefunction(
+            coeffs, dets_alpha, dets_beta, norb=3
+        )
+
+        expected = sorted(
+            zip(dets_alpha.tolist(), dets_beta.tolist(), coeffs.tolist()),
+            key=lambda x: (x[0], x[1], x[2]),
+        )
+        expected_alpha = [a for a, _, _ in expected]
+        expected_beta = [b for _, b, _ in expected]
+        expected_coeffs = [c for _, _, c in expected]
+
+        assert alpha_sorted.tolist() == expected_alpha
+        assert beta_sorted.tolist() == expected_beta
+        assert jnp.allclose(
+            coeffs_sorted,
+            jnp.array(expected_coeffs, dtype=coeffs_sorted.dtype),
+            rtol=0.0,
+            atol=jnp.finfo(coeffs_sorted.dtype).eps,
+        )
+
+    def test_sort_wavefunction_raises_for_empty_wavefunction(self):
+        """Empty wavefunction input should raise ValueError."""
+        with pytest.raises(ValueError, match="Wavefunction cannot be empty"):
+            sort_wavefunction([], [], [], norb=3)
 
     def test_sort_determinants_jax_matches_python_sort(self):
         """JAX sort path gives same alpha-major ordering as Python reference."""
