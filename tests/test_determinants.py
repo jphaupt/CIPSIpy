@@ -327,11 +327,10 @@ class TestConnectedDeterminants:
 
         A_indices = construct_A(dets_alpha)
 
-        connected_indices = find_connected_internal_determinants_beta(
-            dets_alpha, dets_beta, A_indices
+        connected_indices = list(
+            find_connected_internal_determinants_beta(dets_alpha, dets_beta, A_indices)
         )
 
-        print(connected_indices)
         assert connected_indices == [(0, 1), (0, 2), (1, 2), (3, 4)]
 
     def test_find_connected_internal_determinants_oppositespin(self):
@@ -342,8 +341,8 @@ class TestConnectedDeterminants:
 
         A_indices = construct_A(dets_alpha)
 
-        connected_indices = find_connected_internal_determinants_oppositespin(
-            dets_alpha, dets_beta, A_indices
+        connected_indices = list(
+            find_connected_internal_determinants_oppositespin(dets_alpha, dets_beta, A_indices)
         )
 
         assert connected_indices == [(0, 2), (0, 3), (1, 2), (1, 3)]
@@ -356,8 +355,8 @@ class TestConnectedDeterminants:
 
         A_indices = construct_A(dets_alpha)
 
-        connected_indices = find_connected_internal_determinants_oppositespin(
-            dets_alpha, dets_beta, A_indices
+        connected_indices = list(
+            find_connected_internal_determinants_oppositespin(dets_alpha, dets_beta, A_indices)
         )
 
         assert connected_indices == []
@@ -370,8 +369,8 @@ class TestConnectedDeterminants:
 
         A_indices = construct_A(dets_alpha)
 
-        connected_indices = find_connected_internal_determinants_oppositespin(
-            dets_alpha, dets_beta, A_indices
+        connected_indices = list(
+            find_connected_internal_determinants_oppositespin(dets_alpha, dets_beta, A_indices)
         )
 
         assert connected_indices == []
