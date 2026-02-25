@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.determinants import (
+    Wavefunction,
     annihilate,
     apply_double_excitation,
     apply_single_excitation,
@@ -423,6 +424,43 @@ class TestConnectedDeterminants:
         )
 
         assert connected_indices == []
+
+
+class TestWavefunctionClass:
+    def test_wavefunction_length_validation(self):
+        with pytest.raises(ValueError, match="same length"):
+            Wavefunction(
+                coeffs=jnp.array([1.0, 2.0]),
+                dets_alpha=jnp.array([1]),
+                dets_beta=jnp.array([1, 2]),
+                norb=2,
+            )
+
+    def test_sorted_and_sorted_jax_match_functional_apis(self):
+        coeffs = jnp.array([0.3, -0.1, 0.7, 0.2, -0.4])
+        dets_alpha = jnp.array([3, 1, 1, 2, 3])
+        dets_beta = jnp.array([2, 3, 1, 0, 1])
+        wf = Wavefunction(coeffs=coeffs, dets_alpha=dets_alpha, dets_beta=dets_beta, norb=5)
+
+        func_coeffs, func_alpha, func_beta, func_idx = sort_wavefunction(
+            coeffs, dets_alpha, dets_beta, norb=5
+        )
+        wf_sorted, idx = wf.sorted()
+
+        assert jnp.allclose(wf_sorted.coeffs, func_coeffs)
+        assert jnp.array_equal(wf_sorted.dets_alpha, func_alpha)
+        assert jnp.array_equal(wf_sorted.dets_beta, func_beta)
+        assert list(idx) == list(func_idx)
+
+        func_coeffs_j, func_alpha_j, func_beta_j, func_idx_j = sort_wavefunction_jax(
+            coeffs, dets_alpha, dets_beta, norb=5
+        )
+        wf_sorted_j, idx_j = wf.sorted_jax()
+
+        assert jnp.allclose(wf_sorted_j.coeffs, func_coeffs_j)
+        assert jnp.array_equal(wf_sorted_j.dets_alpha, func_alpha_j)
+        assert jnp.array_equal(wf_sorted_j.dets_beta, func_beta_j)
+        assert jnp.array_equal(idx_j, func_idx_j)
 
     def test_find_connected_internal_determinants_oppositespin_rejects_non_single_beta(self):
         """Returns no pairs when beta determinants are not single-connected."""

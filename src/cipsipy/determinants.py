@@ -12,6 +12,8 @@ Determinants are represented as integers where each bit represents an orbital:
 Separate integers are used for alpha and beta spin electrons.
 """
 
+from dataclasses import dataclass
+
 import jax.numpy as jnp
 
 # ============================================================================
@@ -556,3 +558,70 @@ def apply_double_excitation(det_int, i, j, a, b):
     new_det = set_orbital_bit(new_det, b)
 
     return new_det, phase
+
+@dataclass(frozen=True)
+class Wavefunction:
+    """Immutable container for CI wavefunction amplitudes and determinants.
+
+    This mirrors the functional API in this module while providing a grouped
+    object for coefficients and determinant arrays.
+    """
+
+    coeffs: jnp.ndarray
+    dets_alpha: jnp.ndarray
+    dets_beta: jnp.ndarray
+    norb: int
+
+    def __post_init__(self):
+        if self.norb < 1:
+            raise ValueError("norb must be positive")
+        if len(self.coeffs) != len(self.dets_alpha) or len(self.coeffs) != len(self.dets_beta):
+            raise ValueError("coeffs, dets_alpha, and dets_beta must have the same length")
+
+    def sorted(self, sort_alg=radix_sort_rec):
+        """Return alpha-major sorted wavefunction and the sort index list."""
+        coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction(
+            self.coeffs,
+            self.dets_alpha,
+            self.dets_beta,
+            self.norb,
+            sort_alg=sort_alg,
+        )
+        return (
+            Wavefunction(
+                coeffs=coeffs_sorted,
+                dets_alpha=alpha_sorted,
+                dets_beta=beta_sorted,
+                norb=self.norb,
+            ),
+            idx,
+        )
+
+    def sorted_jax(self):
+        """Return alpha-major sorted wavefunction using JAX lexsort."""
+        coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction_jax(
+            self.coeffs,
+            self.dets_alpha,
+            self.dets_beta,
+            self.norb,
+        )
+        return (
+            Wavefunction(
+                coeffs=coeffs_sorted,
+                dets_alpha=alpha_sorted,
+                dets_beta=beta_sorted,
+                norb=self.norb,
+            ),
+            idx,
+        )
+
+    def with_coeffs(self, coeffs):
+        """Return a new wavefunction with updated coefficients."""
+        if len(coeffs) != len(self.dets_alpha):
+            raise ValueError("coeffs must have the same length as determinant arrays")
+        return Wavefunction(
+            coeffs=jnp.asarray(coeffs),
+            dets_alpha=self.dets_alpha,
+            dets_beta=self.dets_beta,
+            norb=self.norb,
+        )

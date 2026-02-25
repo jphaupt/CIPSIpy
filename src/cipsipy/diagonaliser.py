@@ -37,6 +37,19 @@ class Diagonaliser:
         energies = jnp.zeros((self.nstate,))
         eigenstates = jnp.zeros((dim, self.nstate,))
         print("STUB")
+        # Minimal starting vector for design/testing scaffold.
+        v0 = jnp.zeros((dim,))
+        v0 = v0.at[0].set(1.0)
+
+        # we pass callables as arguments to prevent needing to pass so many vectors
+        # while keeping functional purity
+        # In the full Davidson routine this would be used to build subspace data.
+        hv0 = H_vec_prod(v0)
+        if hv0.shape != (dim,):
+            raise ValueError(f"H_vec_prod must return shape ({dim},)")
+
+        # Store one mat-vec result in the first state column to expose data flow.
+        eigenstates = eigenstates.at[:, 0].set(hv0)
         # TODO see algorithm 8 of the garniron thesis
 
         return energies, eigenstates
