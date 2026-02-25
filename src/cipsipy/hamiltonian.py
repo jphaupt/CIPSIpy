@@ -15,6 +15,8 @@ Slater-Condon Rules:
 - 3+ excitations: 0 (orthogonal)
 """
 
+from dataclasses import dataclass
+
 import jax.numpy as jnp
 
 from cipsipy.determinants import (
@@ -27,6 +29,66 @@ from cipsipy.determinants import (
     phase_double,
     phase_single,
 )
+
+# dataclass to generate boilerplate setters
+# frozen to indicate it is immutable after construction
+@dataclass(frozen=True)
+class Hamiltonian:
+    """Immutable Hamiltonian container for one electronic-structure problem.
+
+    This class stores static integrals and orbital metadata. Numerical kernels
+    remain as top-level pure functions for straightforward JAX usage.
+    """
+
+    norb: int
+    h_core: jnp.ndarray
+    eri: jnp.ndarray
+
+    def __post_init__(self):
+        if self.norb < 1:
+            raise ValueError("norb must be positive")
+        if self.h_core.shape != (self.norb, self.norb):
+            raise ValueError("h_core must have shape (norb, norb)")
+        if self.eri.shape != (self.norb, self.norb, self.norb, self.norb):
+            raise ValueError("eri must have shape (norb, norb, norb, norb)")
+
+    def diagonal(self, coeffs, dets_alpha, dets_beta):
+        """Return diagonal Hamiltonian elements for the determinant list."""
+        return get_hamiltonian_diagonal(
+            coeffs,
+            dets_alpha,
+            dets_beta,
+            self.norb,
+            self.h_core,
+            self.eri,
+        )
+
+    def element(self, det_i_alpha, det_i_beta, det_j_alpha, det_j_beta):
+        """Return matrix element <D_i|H|D_j>."""
+        return hamiltonian_element(
+            det_i_alpha,
+            det_i_beta,
+            det_j_alpha,
+            det_j_beta,
+            self.norb,
+            self.h_core,
+            self.eri,
+        )
+
+    def matvec(self, coeffs, dets_alpha, dets_beta, diag_h=None):
+        """Return Hamiltonian-vector product without building full H."""
+        diagonal = diag_h
+        if diagonal is None:
+            diagonal = self.diagonal(coeffs, dets_alpha, dets_beta)
+        return hamiltonian_vector_product(
+            coeffs,
+            dets_alpha,
+            dets_beta,
+            diagonal,
+            self.norb,
+            self.h_core,
+            self.eri,
+        )
 
 def get_hamiltonian_diagonal(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
     h_diag = jnp.zeros_like(coeffs)

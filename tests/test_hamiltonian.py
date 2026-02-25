@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.hamiltonian import (
+    Hamiltonian,
     excitation_level,
     get_excitation_operators,
     hamiltonian_element,
@@ -349,6 +350,35 @@ class TestMatrixVectorProducts:
         actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
 
         assert jnp.allclose(actual, expected)
+
+
+class TestHamiltonianClass:
+    @staticmethod
+    def get_reference_matvec(coeffs, da, db, norb, h_core, eri):
+        return TestMatrixVectorProducts.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+
+    def test_class_wrappers_match_functional_api(self):
+        norb = 2
+        da = [0b01, 0b01]
+        db = [0b01, 0b10]
+        coeffs = jnp.array([1.0, 0.2])
+
+        h_core = jnp.array([[1.0, 0.5], [0.5, 1.0]])
+        eri = jnp.zeros((norb, norb, norb, norb))
+
+        ham = Hamiltonian(norb=norb, h_core=h_core, eri=eri)
+
+        diag_fn = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        diag_cls = ham.diagonal(coeffs, da, db)
+        assert jnp.allclose(diag_cls, diag_fn)
+
+        elem_fn = hamiltonian_element(da[0], db[0], da[1], db[1], norb, h_core, eri)
+        elem_cls = ham.element(da[0], db[0], da[1], db[1])
+        assert jnp.isclose(elem_cls, elem_fn)
+
+        hvp_fn = hamiltonian_vector_product(coeffs, da, db, diag_fn, norb, h_core, eri)
+        hvp_cls = ham.matvec(coeffs, da, db, diag_fn)
+        assert jnp.allclose(hvp_cls, hvp_fn)
 
     def test_hvp_alpha_beta_mix(self):
         norb = 2
