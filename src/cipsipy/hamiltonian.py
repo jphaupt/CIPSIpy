@@ -27,13 +27,22 @@ from cipsipy.determinants import (
 )
 
 
-def hamiltonian_vector_product(dets_alpha, dets_beta, norb, h_core, eri):
+def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
     """Build a Hamiltonian matrix-vector product
 
     This function calculates the product H @ dets without explicitly constructing
     the Hamiltonian matrix H
 
+    The wave function is |ψ⟩ = ∑c_i |D_i⟩ᵅ|D_i⟩ᵝ. This is described by three
+    parallel arrays:
+    - vector of c_i (coeffs)
+    - vector of alpha determinants |D_i⟩ᵅ (dets_alpha)
+    - vector of beta determinants |D_i⟩ᵝ (dets_beta)
+
+    TODO organise this data into a Wavefunction class -- but be careful with JAX (you need PyTree I think)
+
     Args:
+        coeffs: coefficients for
         dets_alpha: Sequence of alpha-spin determinants (bitstring integers)
         dets_beta: Sequence of beta-spin determinants (bitstring integers)
         norb: Number of spatial orbitals
