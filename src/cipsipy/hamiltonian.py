@@ -49,6 +49,7 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri)
         h_core: One-electron integrals [norb, norb]
         eri: Two-electron integrals [norb, norb, norb, norb]
     """
+    # first do diagonal
     # first sort dets (alpha-major)
     # get beta excitations
     # get opposite-spin excitations

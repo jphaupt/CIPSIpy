@@ -16,8 +16,28 @@ from cipsipy.hamiltonian import (
     excitation_level,
     get_excitation_operators,
     hamiltonian_element,
+    hamiltonian_vector_product,
 )
 
+import jax
+import jax.numpy as jnp
+
+def generate_random_test_data(n_det, norb, seed=42):
+    key = jax.random.PRNGKey(seed)
+    k1, k2, k3, k4 = jax.random.split(key, 4)
+
+    coeffs = jax.random.normal(k1, (n_det,))
+
+    # Random h_core (must be symmetric)
+    h_rand = jax.random.normal(k2, (norb, norb))
+    h_core = (h_rand + h_rand.T) / 2
+
+    #  Random ERI (norb, norb, norb, norb)
+    eri = jax.random.normal(k3, (norb, norb, norb, norb))
+    # Note: For strict physical accuracy, one would symmetrize eri here,
+    # but for testing the loop logic, raw random values work.
+
+    return coeffs, h_core, eri
 
 class TestHelperFunctions:
     """Test excitation level and operator extraction functions."""
@@ -266,6 +286,60 @@ class TestDoubleExcitations:
 
         assert element == 0.0
 
+class TestMatrixVectorProducts:
+    @staticmethod
+    def get_reference_matvec(coeffs, da, db, norb, h_core, eri):
+        """Helper function: brute force reference using hamiltonian_element function."""
+        n = len(da)
+        H = jnp.zeros((n, n))
+        for i in range(n):
+            for j in range(n):
+                H = H.at[i, j].set(
+                    hamiltonian_element(da[i], db[i], da[j], db[j], norb, h_core, eri)
+                )
+        return jnp.dot(H, coeffs)
+
+    def test_hvp_minimal_beta(self):
+        # 2 orbitals, alpha is fixed, beta is excited
+        norb = 2
+        da = [0b01, 0b01]
+        db = [0b01, 0b10]
+        coeffs = jnp.array([1.0, 0.2])
+
+        # dummy integrals
+        h_core = jnp.eye(norb)
+        eri = jnp.zeros((norb, norb, norb, norb))
+
+        expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, norb, h_core, eri)
+
+        assert jnp.allclose(actual, expected)
+
+    def test_hvp_alpha_beta_mix(self):
+        norb = 2
+        da = [0b01, 0b10, 0b01]
+        db = [0b01, 0b01, 0b10]
+        coeffs = jnp.array([1.0, 0.5, -0.2])
+
+        h_core = jnp.array([[1.0, 0.5], [0.5, 1.0]])
+        eri = jnp.zeros((norb, norb, norb, norb))
+
+        expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, norb, h_core, eri)
+
+        assert jnp.allclose(actual, expected)
+
+    def test_larger_system_5x5(self):
+        norb = 4
+        ndets = 5
+        coeffs, h_core, eri = generate_random_test_data(ndets, norb)
+        da = [0b0011, 0b0011, 0b0101, 0b1100, 0b1100]
+        db = [0b0011, 0b0110, 0b0011, 0b0011, 0b1100]
+
+        expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, norb, h_core, eri)
+
+        assert jnp.allclose(actual, expected)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
