@@ -19,8 +19,6 @@ import jax.numpy as jnp
 
 from cipsipy.determinants import (
     count_electrons,
-    generate_double_excited_determinants,
-    generate_single_excited_determinants,
     find_connected_internal_determinants_beta,
     find_connected_internal_determinants_oppositespin,
     construct_A,
@@ -30,8 +28,15 @@ from cipsipy.determinants import (
     phase_single,
 )
 
+def get_hamiltonian_diagonal(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
+    h_diag = jnp.zeros_like(coeffs)
+    for i in range(len(h_diag)):
+        # TODO parallelise with vmap
+        h_ii = _diagonal_element(dets_alpha[i], dets_beta[i], norb, h_core, eri)
+        h_diag = h_diag.at[i].set(h_ii)
+    return h_diag
 
-def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
+def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, diag_h, norb, h_core, eri):
     """Build a Hamiltonian matrix-vector product
 
     This function calculates the product H @ dets without explicitly constructing
@@ -53,6 +58,7 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri)
         coeffs: coefficients for
         dets_alpha: Sequence of alpha-spin determinants (bitstring integers)
         dets_beta: Sequence of beta-spin determinants (bitstring integers)
+        diag_h: diagonal of the Hamiltonian
         norb: Number of spatial orbitals
         h_core: One-electron integrals [norb, norb]
         eri: Two-electron integrals [norb, norb, norb, norb]
@@ -61,10 +67,7 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri)
     v_out = jnp.zeros(ndet) # return value, Hv
 
     # first do diagonal contribution: H_ii * c_i
-    for i in range(len(coeffs)):
-        # TODO parallelise with vmap
-        h_ii = _diagonal_element(dets_alpha[i], dets_beta[i], norb, h_core, eri)
-        v_out = v_out.at[i].add(h_ii * coeffs[i])
+    v_out = diag_h * coeffs
 
     # first sort dets (alpha-major)
     s_c, s_da, s_db, s_idx = sort_wavefunction(coeffs, dets_alpha, dets_beta, norb)
@@ -93,8 +96,6 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, norb, h_core, eri)
         v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
     return v_out
 
-
-
 # ===========================================================================
 # Bitstring helper functions
 # ===========================================================================
@@ -112,7 +113,6 @@ def excitation_level(det_i, det_j):
     """
     diff = det_i ^ det_j
     return count_electrons(diff) // 2
-
 
 def get_excitation_operators(det_i, det_j):
     """

@@ -26,14 +26,17 @@ class Diagonaliser:
         self.max_macro_iterations = max_macro_iterations
         if self.nstate < 1:
             raise ValueError("Cannot have fewer than one state to solve.")
-        elif self.nstate != 1:
-            raise ValueError("Excited states not yet implemented.")
         self.H_diag = H_diag
 
-    def davidson(self, H_vec_prod):
+    def davidson(self, H_vec_prod, initial_guess=None):
         """
-        H_vec_prod: function that returns the matrix-vector product Hv
+        H_vec_prod: A callable that takes a vector v and returns Hv
+        initial_guess: Optional starting vector (length dim)
         """
         dim = self.H_diag.shape[0]
-        v1 = jnp.zeros((dim, dim))
+        energies = jnp.zeros((self.nstate,))
+        eigenstates = jnp.zeros((dim, self.nstate,))
+        print("STUB")
         # TODO see algorithm 8 of the garniron thesis
+
+        return energies, eigenstates

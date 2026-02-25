@@ -17,6 +17,7 @@ from cipsipy.hamiltonian import (
     get_excitation_operators,
     hamiltonian_element,
     hamiltonian_vector_product,
+    get_hamiltonian_diagonal,
 )
 
 import jax
@@ -32,10 +33,16 @@ def generate_random_test_data(n_det, norb, seed=42):
     h_rand = jax.random.normal(k2, (norb, norb))
     h_core = (h_rand + h_rand.T) / 2
 
-    #  Random ERI (norb, norb, norb, norb)
-    eri = jax.random.normal(k3, (norb, norb, norb, norb))
-    # Note: For strict physical accuracy, one would symmetrize eri here,
-    # but for testing the loop logic, raw random values work.
+    # Random ERI (norb, norb, norb, norb), then enforce basic chemist's
+    # notation symmetries so resulting Hamiltonian is Hermitian:
+    # (pq|rs) = (qp|rs) = (pq|sr) = (rs|pq)
+    eri_raw = jax.random.normal(k3, (norb, norb, norb, norb))
+    eri = (
+        eri_raw
+        + jnp.transpose(eri_raw, (1, 0, 2, 3))
+        + jnp.transpose(eri_raw, (0, 1, 3, 2))
+        + jnp.transpose(eri_raw, (2, 3, 0, 1))
+    ) / 4.0
 
     return coeffs, h_core, eri
 
@@ -131,6 +138,33 @@ class TestDiagonalElements:
         # = -1.0 + (-0.5) + 0.5*(0.3 - 0.1) = -1.5 + 0.1 = -1.4
         expected = -1.0 - 0.5 + 0.5 * (0.3 - 0.1)
         assert jnp.isclose(energy, expected, atol=1e-10)
+
+    def test_get_hamiltonian_diagonal_matches_element_diagonal(self):
+        """get_hamiltonian_diagonal should match explicit H_ii elements."""
+        norb = 3
+        da = [0b001, 0b011, 0b101]
+        db = [0b001, 0b010, 0b001]
+        coeffs = jnp.array([0.7, -0.2, 0.5])
+
+        h_core = jnp.array([
+            [1.0, 0.1, -0.2],
+            [0.1, 0.8, 0.3],
+            [-0.2, 0.3, 1.2],
+        ])
+        eri = jnp.zeros((norb, norb, norb, norb))
+        eri = eri.at[0, 0, 0, 0].set(0.4)
+        eri = eri.at[1, 1, 1, 1].set(0.2)
+        eri = eri.at[2, 2, 2, 2].set(0.3)
+        eri = eri.at[0, 0, 1, 1].set(0.1)
+        eri = eri.at[0, 1, 1, 0].set(0.05)
+
+        diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        ref_diag = jnp.array([
+            hamiltonian_element(da[i], db[i], da[i], db[i], norb, h_core, eri)
+            for i in range(len(da))
+        ])
+
+        assert jnp.allclose(diag, ref_diag)
 
 
 class TestSingleExcitations:
@@ -289,14 +323,14 @@ class TestDoubleExcitations:
 class TestMatrixVectorProducts:
     @staticmethod
     def get_reference_matvec(coeffs, da, db, norb, h_core, eri):
-        """Helper function: brute force reference using hamiltonian_element function."""
+        """Helper function: brute force reference under Hermitian assumption."""
         n = len(da)
         H = jnp.zeros((n, n))
         for i in range(n):
-            for j in range(n):
-                H = H.at[i, j].set(
-                    hamiltonian_element(da[i], db[i], da[j], db[j], norb, h_core, eri)
-                )
+            for j in range(i, n):
+                hij = hamiltonian_element(da[i], db[i], da[j], db[j], norb, h_core, eri)
+                H = H.at[i, j].set(hij)
+                H = H.at[j, i].set(hij)
         return jnp.dot(H, coeffs)
 
     def test_hvp_minimal_beta(self):
@@ -311,7 +345,8 @@ class TestMatrixVectorProducts:
         eri = jnp.zeros((norb, norb, norb, norb))
 
         expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
-        actual = hamiltonian_vector_product(coeffs, da, db, norb, h_core, eri)
+        h_diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
 
         assert jnp.allclose(actual, expected)
 
@@ -325,7 +360,8 @@ class TestMatrixVectorProducts:
         eri = jnp.zeros((norb, norb, norb, norb))
 
         expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
-        actual = hamiltonian_vector_product(coeffs, da, db, norb, h_core, eri)
+        h_diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
 
         assert jnp.allclose(actual, expected)
 
@@ -337,7 +373,8 @@ class TestMatrixVectorProducts:
         db = [0b0011, 0b0110, 0b0011, 0b0011, 0b1100]
 
         expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
-        actual = hamiltonian_vector_product(coeffs, da, db, norb, h_core, eri)
+        h_diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
 
         assert jnp.allclose(actual, expected)
 
