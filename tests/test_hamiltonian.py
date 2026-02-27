@@ -366,7 +366,7 @@ class TestHamiltonianClass:
         h_core = jnp.array([[1.0, 0.5], [0.5, 1.0]])
         eri = jnp.zeros((norb, norb, norb, norb))
 
-        ham = Hamiltonian(norb=norb, h_core=h_core, eri=eri)
+        ham = Hamiltonian(norb=norb, h_core=h_core, eri=eri, e_nuc=0.)
 
         diag_fn = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
         diag_cls = ham.diagonal(coeffs, da, db)

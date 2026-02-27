@@ -43,6 +43,7 @@ class Hamiltonian:
     norb: int
     h_core: jnp.ndarray
     eri: jnp.ndarray
+    e_nuc: float
 
     def __post_init__(self):
         if self.norb < 1:

@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+
 class Diagonaliser:
     """Matrix diagonaliser
     This class will contain methods for diagonlisation routines, such as for FCI
@@ -43,7 +44,7 @@ class Diagonaliser:
 
         for _ in range(self.max_macro_iterations):
             Vmat, _ = jnp.linalg.qr(Vmat)
-            Wmat = H_vec_prod(Vmat) # (dim, m)
+            Wmat = self._apply_h_vec_prod(H_vec_prod, Vmat) # (dim, m)
 
             # subspace matrix
             Tmat = Vmat.T @ Wmat    # (m, m)
@@ -68,3 +69,17 @@ class Diagonaliser:
         print("Exiting Davidson diagonalisation due to max iterations reached")
         print("Use resulting eigenvectors at your own peril. :)")
         return evals, Umat
+
+    @staticmethod
+    def _apply_h_vec_prod(H_vec_prod, vectors):
+        """Apply a vector-only H_vec_prod to one or many vectors.
+
+        Args:
+            H_vec_prod: Callable mapping shape (dim,) -> (dim,)
+            vectors: Either shape (dim,) or (dim, nvec)
+        """
+        if vectors.ndim == 1:
+            return H_vec_prod(vectors)
+
+        cols = [H_vec_prod(vectors[:, i]) for i in range(vectors.shape[1])]
+        return jnp.column_stack(cols)
