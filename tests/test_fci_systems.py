@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.fcidump import read_fcidump
 from cipsipy.hamiltonian import hamiltonian_element
+from cipsipy.diagonaliser import Diagonaliser
 
 
 # ============================================================================
@@ -193,15 +194,26 @@ class TestFCISystems:
         print(f"Ground State Energy: {name}")
         print(f"{'='*70}")
 
+        # dense diagonalisation
         eigenvalues = jnp.linalg.eigh(H)[0]
         e_gs_computed = float(eigenvalues[0])
 
+        # Davidson diagonalisation
+        solver = Diagonaliser(H_diag=jnp.diag(H), nstate=1)
+        evals_davidson, _ = solver.davidson(lambda v: H @ v)
+        e0_davidson = float(evals_davidson[0])
+
         print(f"  Reference: {e_gs_ref:.12f} a.u.")
         print(f"  Computed:  {e_gs_computed:.12f} a.u.")
+        print(f"  Computed (Davidson):  {e0_davidson:.12f} a.u.")
         print(f"  Δ:         {abs(e_gs_computed - e_gs_ref):.2e} a.u.")
 
         tolerance = 1e-12
         energy_diff = abs(e_gs_computed - e_gs_ref)
+        assert energy_diff < tolerance, (
+            f"Energy differs by {energy_diff:.2e} > {tolerance:.2e}"
+        )
+        energy_diff = abs(e0_davidson - e_gs_ref)
         assert energy_diff < tolerance, (
             f"Energy differs by {energy_diff:.2e} > {tolerance:.2e}"
         )
