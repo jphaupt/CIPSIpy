@@ -56,28 +56,28 @@ class TestHelperFunctions:
 
     def test_excitation_level_single(self):
         """Single excitation gives level 1."""
-        det_i = 3  # 0b0011
-        det_j = 6  # 0b0110
+        det_i = 0b0011
+        det_j = 0b0110
         assert excitation_level(det_i, det_j) == 1
 
     def test_excitation_level_double(self):
         """Double excitation gives level 2."""
-        det_i = 3  # 0b0011
-        det_j = 12  # 0b1100
+        det_i = 0b0011
+        det_j = 0b1100
         assert excitation_level(det_i, det_j) == 2
 
     def test_get_excitation_operators_single(self):
         """Extract correct hole/particle indices for single excitation."""
-        det_i = 3  # 0b0011 (orbitals 0, 1)
-        det_j = 6  # 0b0110 (orbitals 1, 2)
+        det_i = 0b0011 # (orbitals 0, 1)
+        det_j = 0b0110 # (orbitals 1, 2)
         holes, particles = get_excitation_operators(det_i, det_j)
         assert holes == [0]
         assert particles == [2]
 
     def test_get_excitation_operators_double(self):
         """Extract correct hole/particle indices for double excitation."""
-        det_i = 3  # 0b0011 (orbitals 0, 1)
-        det_j = 12  # 0b1100 (orbitals 2, 3)
+        det_i = 0b0011 # (orbitals 0, 1)
+        det_j = 0b1100 # (orbitals 2, 3)
         holes, particles = get_excitation_operators(det_i, det_j)
         assert holes == [0, 1]
         assert particles == [2, 3]
@@ -89,8 +89,8 @@ class TestDiagonalElements:
     def test_diagonal_two_electrons_same_orbital(self):
         """Test diagonal for 2 electrons in same orbital, different spins."""
         # Alpha in orbital 0, beta in orbital 0 (same spatial orbital)
-        det_alpha = 1  # 0b01
-        det_beta = 1   # 0b01
+        det_alpha = 0b01
+        det_beta = 0b01
         n_orb = 2
 
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
@@ -106,8 +106,8 @@ class TestDiagonalElements:
     def test_diagonal_different_orbitals(self):
         """Test diagonal for alpha and beta electrons in different orbitals."""
         # Alpha in orbital 0, beta in orbital 1
-        det_alpha = 1  # 0b01
-        det_beta = 2   # 0b10
+        det_alpha = 0b01
+        det_beta = 0b10
         n_orb = 2
 
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
@@ -123,8 +123,8 @@ class TestDiagonalElements:
     def test_diagonal_alpha_alpha_exchange(self):
         """Test diagonal with alpha-alpha exchange interaction."""
         # Two alpha electrons in orbitals 0 and 1
-        det_alpha = 3  # 0b11
-        det_beta = 0   # 0b00
+        det_alpha = 0b11
+        det_beta = 0b00
         n_orb = 2
 
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
@@ -174,10 +174,10 @@ class TestSingleExcitations:
     def test_single_excitation_alpha(self):
         """Test single alpha excitation."""
         # Initial: α in 0, β in 1; Final: α in 2, β in 1 (α: 0→2)
-        det_i_alpha = 1  # 0b01
-        det_i_beta = 2   # 0b10
-        det_j_alpha = 4  # 0b100
-        det_j_beta = 2   # 0b10
+        det_i_alpha = 0b01
+        det_i_beta = 0b10
+        det_j_alpha = 0b100
+        det_j_beta = 0b10
         n_orb = 3
 
         h_core = jnp.zeros((3, 3))
@@ -198,10 +198,10 @@ class TestSingleExcitations:
     def test_single_excitation_beta(self):
         """Test single beta excitation."""
         # Initial: α in 0, β in 1; Final: α in 0, β in 2 (β: 1→2)
-        det_i_alpha = 1  # 0b01
-        det_i_beta = 2   # 0b10
-        det_j_alpha = 1  # 0b01
-        det_j_beta = 4   # 0b100
+        det_i_alpha = 0b01
+        det_i_beta = 0b10
+        det_j_alpha = 0b01
+        det_j_beta = 0b100
         n_orb = 3
 
         h_core = jnp.zeros((3, 3))
@@ -221,10 +221,10 @@ class TestSingleExcitations:
     def test_single_excitation_negative_phase(self):
         """Test single excitation with negative phase."""
         # Initial: α in 0,1; Final: α in 0,2 (α: 1→2, orbital 1 between them)
-        det_i_alpha = 3  # 0b011
-        det_i_beta = 0   # 0b000
-        det_j_alpha = 5  # 0b101
-        det_j_beta = 0   # 0b000
+        det_i_alpha = 0b011
+        det_i_beta = 0b000
+        det_j_alpha = 0b101
+        det_j_beta = 0b000
         n_orb = 3
 
         h_core = jnp.zeros((3, 3))
@@ -261,10 +261,10 @@ class TestDoubleExcitations:
     def test_double_same_spin_alpha(self):
         """Test double excitation within alpha spin."""
         # Initial: α in 0,1; Final: α in 2,3 (α: 0,1→2,3)
-        det_i_alpha = 3   # 0b0011
-        det_i_beta = 0    # 0b0000
-        det_j_alpha = 12  # 0b1100
-        det_j_beta = 0    # 0b0000
+        det_i_alpha = 0b0011
+        det_i_beta = 0b0000
+        det_j_alpha = 0b1100
+        det_j_beta = 0b0000
         n_orb = 4
 
         h_core = jnp.zeros((4, 4))
@@ -285,10 +285,10 @@ class TestDoubleExcitations:
     def test_double_opposite_spin(self):
         """Test double excitation with opposite spins."""
         # Initial: α in 0, β in 1; Final: α in 2, β in 3 (α: 0→2, β: 1→3)
-        det_i_alpha = 1  # 0b0001
-        det_i_beta = 2   # 0b0010
-        det_j_alpha = 4  # 0b0100
-        det_j_beta = 8   # 0b1000
+        det_i_alpha = 0b0001
+        det_i_beta = 0b0010
+        det_j_alpha = 0b0100
+        det_j_beta = 0b1000
         n_orb = 4
 
         h_core = jnp.zeros((4, 4))
@@ -308,10 +308,10 @@ class TestDoubleExcitations:
     def test_triple_excitation_zero(self):
         """Test that triple or higher excitations return 0."""
         # Initial: α in 0,1,2; Final: α in 3,4,5 (3 excitations)
-        det_i_alpha = 7   # 0b000111
-        det_i_beta = 0    # 0b000000
-        det_j_alpha = 56  # 0b111000
-        det_j_beta = 0    # 0b000000
+        det_i_alpha = 0b000111
+        det_i_beta = 0b000000
+        det_j_alpha = 0b111000
+        det_j_beta = 0b000000
         n_orb = 6
 
         h_core = jnp.zeros((6, 6))

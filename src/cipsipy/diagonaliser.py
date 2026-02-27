@@ -38,7 +38,7 @@ class Diagonaliser:
         """
         dim = self.H_diag.shape[0]
 
-        # initial guess for eigenstates
+        # initial guess for eigenstates: [1,0,0,...], [0,1,0,...], ...
         Vmat = jnp.eye(dim, self.nstate)
 
         for _ in range(self.max_macro_iterations):
@@ -66,4 +66,5 @@ class Diagonaliser:
             Vmat = jnp.hstack((Vmat, residuals))
 
         print("Exiting Davidson diagonalisation due to max iterations reached")
+        print("Use resulting eigenvectors at your own peril. :)")
         return evals, Umat
