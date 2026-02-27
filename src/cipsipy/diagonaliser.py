@@ -32,24 +32,38 @@ class Diagonaliser:
         """
         H_vec_prod: A callable that takes a vector v and returns Hv
         initial_guess: Optional starting vector (length dim)
+
+        TODO the JAX array gets rebuilt every time we add a new vector guess, so
+            this wastes a lot of time -- use padding with masking
         """
         dim = self.H_diag.shape[0]
-        energies = jnp.zeros((self.nstate,))
-        eigenstates = jnp.zeros((dim, self.nstate,))
-        print("STUB")
-        # Minimal starting vector for design/testing scaffold.
-        v0 = jnp.zeros((dim,))
-        v0 = v0.at[0].set(1.0)
 
-        # we pass callables as arguments to prevent needing to pass so many vectors
-        # while keeping functional purity
-        # In the full Davidson routine this would be used to build subspace data.
-        hv0 = H_vec_prod(v0)
-        if hv0.shape != (dim,):
-            raise ValueError(f"H_vec_prod must return shape ({dim},)")
+        # initial guess for eigenstates
+        Vmat = jnp.eye(dim, self.nstate)
 
-        # Store one mat-vec result in the first state column to expose data flow.
-        eigenstates = eigenstates.at[:, 0].set(hv0)
-        # TODO see algorithm 8 of the garniron thesis
+        for _ in range(self.max_macro_iterations):
+            Vmat, _ = jnp.linalg.qr(Vmat)
+            Wmat = H_vec_prod(Vmat) # (dim, m)
 
-        return energies, eigenstates
+            # subspace matrix
+            Tmat = Vmat.T @ Wmat    # (m, m)
+            evals, Smat = jnp.linalg.eigh(Tmat)
+            idx = jnp.argsort(evals[:self.nstate])
+            evals = evals[idx]
+            Smat = Smat[:, idx]
+
+            # get Ritz vectors
+            Umat = Vmat @ Smat
+            HUmat = Wmat @ Smat
+            denom = self.H_diag[:, jnp.newaxis] - evals[jnp.newaxis, :]
+            residuals = (HUmat - Umat * evals[jnp.newaxis, :]) / denom
+
+            rnorm = jnp.linalg.norm(residuals, axis=0)
+
+            if jnp.all(rnorm < self.residual_tol):
+                return evals, Umat
+
+            Vmat = jnp.hstack((Vmat, residuals))
+
+        print("Exiting Davidson diagonalisation due to max iterations reached")
+        return evals, Umat
