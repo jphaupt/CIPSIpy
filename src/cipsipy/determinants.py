@@ -224,6 +224,19 @@ def sort_wavefunction_jax(coeffs, dets_alpha, dets_beta, norb):
     idx = jnp.lexsort((dets_beta, dets_alpha))
     return coeffs[idx], dets_alpha[idx], dets_beta[idx], idx
 
+def sort_wavefunction_by_coeffs_jax(coeffs, dets_alpha, dets_beta):
+    """
+    Sorts determinants and coeffs according to square of coeffs in descending order
+
+    TODO I am quite confused by this: we need the wave function sorted in terms
+        of coeffs^2, but this requires NlogN as far as I'm aware, yet we went
+        through so much effort with radix sort to sort in O(N) time. Doesn't this
+        effectively undermine all that effort?
+    """
+    idx = jnp.argsort(coeffs**2)[::-1]
+    # jnp.argsort(coeffs.real**2 + coeffs.imag**2)[::-1]  # For complex coeffs
+    return coeffs[idx], dets_alpha[idx], dets_beta[idx], idx
+
 
 def get_occupied_indices(det_int, n_orbitals):
     """
@@ -578,7 +591,23 @@ class Wavefunction:
         if len(self.coeffs) != len(self.dets_alpha) or len(self.coeffs) != len(self.dets_beta):
             raise ValueError("coeffs, dets_alpha, and dets_beta must have the same length")
 
-    def sorted(self, sort_alg=radix_sort_rec):
+    def coeff_sorted(self):
+        coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction_by_coeffs_jax(
+            self.coeffs,
+            self.dets_alpha,
+            self.dets.beta,
+        )
+        return (
+            Wavefunction(
+                coeffs=coeffs_sorted,
+                dets_alpha=alpha_sorted,
+                dets_beta=beta_sorted,
+                norb=self.norb,
+            ),
+            idx,
+        )
+
+    def alpha_sorted(self, sort_alg=radix_sort_rec):
         """Return alpha-major sorted wavefunction and the sort index list."""
         coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction(
             self.coeffs,
@@ -597,7 +626,7 @@ class Wavefunction:
             idx,
         )
 
-    def sorted_jax(self):
+    def alpha_sorted_jax(self):
         """Return alpha-major sorted wavefunction using JAX lexsort."""
         coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction_jax(
             self.coeffs,

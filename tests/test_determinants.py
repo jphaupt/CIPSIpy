@@ -445,7 +445,7 @@ class TestWavefunctionClass:
         func_coeffs, func_alpha, func_beta, func_idx = sort_wavefunction(
             coeffs, dets_alpha, dets_beta, norb=5
         )
-        wf_sorted, idx = wf.sorted()
+        wf_sorted, idx = wf.alpha_sorted()
 
         assert jnp.allclose(wf_sorted.coeffs, func_coeffs)
         assert jnp.array_equal(wf_sorted.dets_alpha, func_alpha)
@@ -455,7 +455,7 @@ class TestWavefunctionClass:
         func_coeffs_j, func_alpha_j, func_beta_j, func_idx_j = sort_wavefunction_jax(
             coeffs, dets_alpha, dets_beta, norb=5
         )
-        wf_sorted_j, idx_j = wf.sorted_jax()
+        wf_sorted_j, idx_j = wf.alpha_sorted_jax()
 
         assert jnp.allclose(wf_sorted_j.coeffs, func_coeffs_j)
         assert jnp.array_equal(wf_sorted_j.dets_alpha, func_alpha_j)
