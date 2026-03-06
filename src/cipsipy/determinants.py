@@ -17,6 +17,24 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 
 # ============================================================================
+# Utility functions
+# ============================================================================
+
+def spinorb2spatorb(p_so: int, norb: int) -> tuple[int, bool]:
+    """
+    converts spinorbital index to spatial orbital index, given norb spatial
+    orbitals. It also returns True if the p_so refers to an electron in the alpha
+    block, False for the beta block
+    Note we store alpha then beta, so for example
+    spinorb2spatorb(6, 4) -> 2, False
+    spinorb2spatorb(2, 4) -> 2, True
+    """
+    if p_so < norb:
+        return p_so, True
+    else:
+        return p_so - norb, False
+
+# ============================================================================
 # Helper functions for bitwise operations
 # ============================================================================
 
