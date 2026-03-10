@@ -37,10 +37,13 @@ def spinorb2spatorb(p_so: int, norb: int) -> tuple[int, bool]:
 def get_det_subset_size(coeffs, cutoff1, cutoff2):
     """
     Given coeffs c_i, get two integer values N1 N2 corresponding to the cutoffs
-    cutoff1 = \sum_{i=0}^N |c_i|^2
+    cutoff1 = \sum_{i=1}^N |c_i|^2
     Precondition: coeffs are sorted according to |c_i|^2
     """
-    exit("TODO: stub")
+    cumsum = jnp.cumsum(jnp.abs(coeffs)**2)
+    N1 = jnp.searchsorted(cumsum, cutoff1 * cumsum[-1])
+    N2 = jnp.searchsorted(cumsum, cutoff2 * cumsum[-1])
+    return min(int(N1)+1, len(coeffs)), min(int(N2)+1, len(coeffs)) # plus one to correct from 0-based indexing
 
 # ============================================================================
 # Helper functions for bitwise operations

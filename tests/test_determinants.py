@@ -1,15 +1,14 @@
 """
 Tests for determinant operations using bitstring representations
 """
-
 import os
 import sys
 
-import jax.numpy as jnp
-import pytest
-
 # For development: add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
+
+import jax.numpy as jnp
+import pytest
 
 from cipsipy.determinants import (
     Wavefunction,
@@ -36,10 +35,20 @@ from cipsipy.determinants import (
 class TestDetSubsetSize:
     """Test cutoff-based determinant subset sizing."""
 
+    def test_get_det_subset_size_one_item(self):
+        # |c|^2 = [1.0]
+        # cumulative = [1.0]
+        coeffs = jnp.array([1.0])
+
+        n1, n2 = get_det_subset_size(coeffs, cutoff1=0.5, cutoff2=1.8)
+
+        assert n1 == 1
+        assert n2 == 1
+
     def test_get_det_subset_size_basic_thresholds(self):
-        # |c|^2 = [0.64, 0.16, 0.09, 0.01]
+        # |c|^2 = [0.64, 0.16, 0.09, 0.04]
         # cumulative = [0.64, 0.80, 0.89, 0.90]
-        coeffs = jnp.array([0.8, 0.4, 0.3, 0.1])
+        coeffs = jnp.array([0.8, 0.4, 0.3, 0.2])
 
         n1, n2 = get_det_subset_size(coeffs, cutoff1=0.75, cutoff2=0.88)
 
