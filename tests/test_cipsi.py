@@ -54,6 +54,10 @@ def test_Bmat_epv_single(empty_Bmat):
             Bmat_expected = Bmat_expected.at[i,rs].set(False)
 
     Bmat = apply_epv_and_single_tagging(empty_Bmat, ps, qs, Gdet, norb)
+    print("Got:")
+    print(Bmat.astype(int))
+    print("Expected:")
+    print(Bmat_expected.astype(int))
     for i in range(2*norb):
         for j in range(2*norb):
             assert Bmat[i,j] == Bmat_expected[i,j], f"Matrices differ at indices ({i},{j})"

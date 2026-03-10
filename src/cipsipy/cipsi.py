@@ -147,7 +147,7 @@ def apply_epv_and_single_tagging(
     """
     G_pq = clear_orbital_bit(clear_orbital_bit(Gdet, ps), qs)
     is_p_alpha = ps < norb
-    is_q_alpha = ps < norb
+    is_q_alpha = qs < norb
     # initialise entirely untagged (True for us)
     Bmat = jnp.ones((2*norb, 2*norb), dtype=bool)
     # to tag:
@@ -158,7 +158,7 @@ def apply_epv_and_single_tagging(
     # q is alpha and p is lowest occupied beta in G (not G_pq) -> untag p
     # p is beta and q is lowest occupied alpha in G (not G_pq) -> untag q
     rows_to_tag = jnp.ones((2*norb,), dtype=bool)
-    for rs in range(norb):
+    for rs in range(2*norb):
         if is_orbital_occupied(G_pq, rs):
             rows_to_tag = rows_to_tag.at[rs].set(False)
     rows_to_tag = rows_to_tag.at[ps].set(False)
