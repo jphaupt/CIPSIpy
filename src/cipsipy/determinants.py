@@ -34,6 +34,14 @@ def spinorb2spatorb(p_so: int, norb: int) -> tuple[int, bool]:
     else:
         return p_so - norb, False
 
+def get_det_subset_size(coeffs, cutoff1, cutoff2):
+    """
+    Given coeffs c_i, get two integer values N1 N2 corresponding to the cutoffs
+    cutoff1 = \sum_{i=0}^N |c_i|^2
+    Precondition: coeffs are sorted according to |c_i|^2
+    """
+    exit("TODO: stub")
+
 # ============================================================================
 # Helper functions for bitwise operations
 # ============================================================================

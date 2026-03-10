@@ -30,7 +30,50 @@ from cipsipy.determinants import (
     radix_sort_rec,
     sort_wavefunction,
     sort_wavefunction_jax,
+    get_det_subset_size,
 )
+
+class TestDetSubsetSize:
+    """Test cutoff-based determinant subset sizing."""
+
+    def test_get_det_subset_size_basic_thresholds(self):
+        # |c|^2 = [0.64, 0.16, 0.09, 0.01]
+        # cumulative = [0.64, 0.80, 0.89, 0.90]
+        coeffs = jnp.array([0.8, 0.4, 0.3, 0.1])
+
+        n1, n2 = get_det_subset_size(coeffs, cutoff1=0.75, cutoff2=0.88)
+
+        assert n1 == 2
+        assert n2 == 3
+
+    def test_get_det_subset_size_exact_boundary(self):
+        # |c|^2 = [0.64, 0.36, 0.0]
+        # cumulative = [0.64, 1.00, 1.00]
+        coeffs = jnp.array([0.8, 0.6, 0.0])
+
+        n1, n2 = get_det_subset_size(coeffs, cutoff1=0.64, cutoff2=1.0)
+
+        assert n1 == 1
+        assert n2 == 2
+
+    def test_get_det_subset_size_complex_coeffs(self):
+        # |c|^2 = [0.50, 0.25, 0.04]
+        # cumulative = [0.50, 0.75, 0.79]
+        coeffs = jnp.array([0.5 + 0.5j, 0.5j, 0.2 + 0.0j])
+
+        n1, n2 = get_det_subset_size(coeffs, cutoff1=0.50, cutoff2=0.74)
+
+        assert n1 == 1
+        assert n2 == 2
+
+    def test_get_det_subset_size_cutoff_above_total(self):
+        # total |c|^2 = 0.36 + 0.09 = 0.45
+        coeffs = jnp.array([0.6, 0.3])
+
+        n1, n2 = get_det_subset_size(coeffs, cutoff1=0.9, cutoff2=1.2)
+
+        assert n1 == len(coeffs)
+        assert n2 == len(coeffs)
 
 
 class TestBitstringOperations:

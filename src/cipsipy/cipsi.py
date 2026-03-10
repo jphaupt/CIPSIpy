@@ -1,4 +1,4 @@
-from cipsipy.determinants import Wavefunction, clear_orbital_bit
+from cipsipy.determinants import Wavefunction, clear_orbital_bit, get_det_subset_size
 from cipsipy.hamiltonian import Hamiltonian
 from typing import Tuple
 from cipsipy.fcidump import read_fcidump
@@ -148,7 +148,7 @@ def apply_epv_and_single_tagging(
     G_pq = clear_orbital_bit(clear_orbital_bit(Gdet, ps), qs)
     is_p_alpha = ps < norb
     is_q_alpha = qs < norb
-    # initialise entirely untagged (True for us)
+    # initialise entirely untagged (True)
     Bmat = jnp.ones((2*norb, 2*norb), dtype=bool)
     # to tag:
     # - diagonal of G_pq
@@ -171,7 +171,7 @@ def apply_epv_and_single_tagging(
                 else:
                     break
     if not is_p_alpha:
-        for rs in range(norb):
+        for rs in range(norb): # 0 to norb-1 are alpha orbitals
             if is_orbital_occupied(Gdet, rs):
                 if rs == qs:
                     rows_to_tag = rows_to_tag.at[qs].set(True)
