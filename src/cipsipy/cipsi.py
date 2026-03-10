@@ -3,6 +3,7 @@ from cipsipy.hamiltonian import Hamiltonian
 from typing import Tuple
 from cipsipy.fcidump import read_fcidump
 from cipsipy.determinants import is_orbital_occupied
+import jax.numpy as jnp
 
 class CIPSISolver:
     def __init__(self, n_g=0.99, n_s=0.999, fcidump_filename='FCIDUMP'):
@@ -132,6 +133,8 @@ def apply_epv_and_single_tagging(
         norb: int,       # number of spatial orbitals
     ):
     """
+    NOTE: this works in spin-orbitals
+
     algorithm 15 of the thesis: apply tagging to exclusion-principle-violating
     and single-excitation determinants
 
@@ -145,6 +148,40 @@ def apply_epv_and_single_tagging(
     G_pq = clear_orbital_bit(clear_orbital_bit(Gdet, ps), qs)
     is_p_alpha = ps < norb
     is_q_alpha = ps < norb
+    # initialise entirely untagged (True for us)
+    Bmat = jnp.ones((2*norb, 2*norb), dtype=bool)
+    # to tag:
+    # - diagonal of G_pq
+    # - occupied in G_pq
+    # - p and q
+    # to untag:
+    # q is alpha and p is lowest occupied beta in G (not G_pq) -> untag p
+    # p is beta and q is lowest occupied alpha in G (not G_pq) -> untag q
+    rows_to_tag = jnp.ones((2*norb,), dtype=bool)
+    for rs in range(norb):
+        if is_orbital_occupied(G_pq, rs):
+            rows_to_tag = rows_to_tag.at[rs].set(False)
+    rows_to_tag = rows_to_tag.at[ps].set(False)
+    rows_to_tag = rows_to_tag.at[qs].set(False)
+    if is_q_alpha:
+        for rs in range(norb, 2*norb): # beta orbitals
+            if is_orbital_occupied(Gdet, rs):
+                if rs == ps:
+                    rows_to_tag = rows_to_tag.at[ps].set(True)
+                else:
+                    break
+    if not is_p_alpha:
+        for rs in range(norb):
+            if is_orbital_occupied(Gdet, rs):
+                if rs == qs:
+                    rows_to_tag = rows_to_tag.at[qs].set(True)
+                else:
+                    break
+    # now do the actual tagging
+    for i in range(2*norb):
+        Bmat = Bmat.at[i, i].set(False)
+        if not rows_to_tag[i]:
+            Bmat = Bmat.at[i, :].set(False)
+            Bmat = Bmat.at[:, i].set(False)
 
-    print("STUB")
     return Bmat
