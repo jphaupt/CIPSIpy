@@ -2,7 +2,7 @@ from cipsipy.determinants import Wavefunction, clear_orbital_bit, get_det_subset
 from cipsipy.hamiltonian import Hamiltonian
 from typing import Tuple, Optional
 from cipsipy.fcidump import read_fcidump
-from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, annihilate
+from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, annihilate, get_creation_pair
 import jax.numpy as jnp
 
 class CIPSISolver:
@@ -104,12 +104,11 @@ class CIPSISolver:
                         Sdet_alpha = det_alpha_gen[j_sel]
                         Sdet_beta  = det_beta_gen[j_sel]
                         Sdet = spatorb2spinorb_det(Sdet_alpha, Sdet_beta, self.ham.norb)
-                        # Check if there exists (r,s) such that G_pq^rs = S
+                        # if ∃ (r,s) s.t. S=G_pq^rs, tag
                         r_s_pair = get_creation_pair(G_pq, Sdet, self.ham.norb)
                         if r_s_pair is not None:
                             tagmask = tagmask.at[r_s_pair[0], r_s_pair[1]].set(False)
                             tagmask = tagmask.at[r_s_pair[1], r_s_pair[0]].set(False)
-                        # if ∃ (r,s) s.t. S=G_pq^rs, tag
 
                         #
 

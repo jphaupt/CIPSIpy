@@ -13,6 +13,7 @@ Separate integers are used for alpha and beta spin electrons.
 """
 
 from dataclasses import dataclass
+from itertools import combinations
 
 from typing import Tuple, Optional
 import jax.numpy as jnp
@@ -71,6 +72,66 @@ def get_creation_pair(G_pq: int, S: int, norb: int) -> Optional[Tuple[int, int]]
             if not ((G_pq >> r) & 1) and not ((G_pq >> s) & 1):
                 return (r, s)
     return None
+
+
+def get_creation_pairs(G_pq: int, S: int, norb: int) -> list[Tuple[int, int]]:
+    """
+    Return all creation pairs (r, s) such that |G_pq^(rs)> is at most a double
+    excitation away from |S>.
+
+    The logic follows the case split described in Garniron's thesis.
+
+    We use local shorthand here:
+        A = occ(S) \ occ(G_pq)
+        R = occ(G_pq) \ occ(S)
+    where occ(det) is the set of occupied spin-orbitals in ``det``.
+
+    This ``A``/``R`` notation is only explanatory for the implementation; it is
+    not intended to mirror a named symbol from the thesis.
+
+    Returns canonical pairs with r < s in ascending lexicographic order.
+    """
+    n_spinorb = 2 * norb
+
+    added = []
+    removed = []
+    virtual_in_gpq = []
+    for i in range(n_spinorb):
+        g_occ = (G_pq >> i) & 1
+        s_occ = (S >> i) & 1
+        if s_occ and not g_occ:
+            added.append(i)
+        elif g_occ and not s_occ:
+            removed.append(i)
+        if not g_occ:
+            virtual_in_gpq.append(i)
+
+    # Expected precondition for doubly-ionized G_pq relative to S.
+    if len(added) - len(removed) != 2:
+        return []
+
+    pairs: list[Tuple[int, int]] = []
+    added_set = set(added)
+    outside_added_virtual = [i for i in virtual_in_gpq if i not in added_set]
+
+    # Case 1: |A|=2, |R|=0 -> all virtual pairs are allowed.
+    if len(added) == 2 and len(removed) == 0:
+        pairs.extend(combinations(virtual_in_gpq, 2))
+    # Case 2: |A|=3, |R|=1 -> at least one created orbital must come from A.
+    elif len(added) == 3 and len(removed) == 1:
+        pairs.extend(combinations(added, 2))
+        for r in added:
+            for s in outside_added_virtual:
+                pairs.append((r, s) if r < s else (s, r))
+    # Case 3: |A|=4, |R|=2 -> both created orbitals must come from A.
+    elif len(added) == 4 and len(removed) == 2:
+        pairs.extend(combinations(added, 2))
+    # Case 4: more differences -> not connected by <= double excitation.
+    else:
+        return []
+
+    # Normalize and sort deterministically.
+    return sorted(set(pairs))
 
 def get_excitation_level(det_i, det_j):
     """

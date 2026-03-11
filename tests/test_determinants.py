@@ -24,6 +24,7 @@ from cipsipy.determinants import (
     generate_double_excited_determinants,
     generate_single_excited_determinants,
     get_creation_pair,
+    get_creation_pairs,
     get_occupied_indices,
     phase_double,
     phase_single,
@@ -71,6 +72,93 @@ class TestCreationPair:
         pair = get_creation_pair(0b00000001, 0b10100001, 4)
 
         assert pair == (5, 7)
+
+
+class TestCreationPairs:
+    """Case-based tests for all (r, s) pairs yielding <= double excitation to S.
+
+    We use the local shorthand
+    A = occ(S) \ occ(G_pq)
+    R = occ(G_pq) \ occ(S)
+    where occ(det) is the set of occupied spin-orbitals in a determinant.
+
+    TODO proofread these tests more carefully and make sure there are no remaining edge cases
+    """
+
+    def test_case_2_added_0_removed_all_virtual_pairs_valid(self):
+        # |A|=2, |R|=0. Every virtual pair in G_pq is valid.
+        norb = 3  # 6 spin-orbitals
+        G_pq = 0b000001
+        S = 0b000111
+
+        pairs = get_creation_pairs(G_pq, S, norb)
+
+        virtual = [1, 2, 3, 4, 5]
+        expected = [(virtual[i], virtual[j]) for i in range(len(virtual)) for j in range(i + 1, len(virtual))]
+        assert pairs == expected
+
+    def test_case_2_added_0_removed_contains_zeroth_order_pair(self):
+        # A={1,2}, R={} so the exact pair that reproduces S must be present.
+        norb = 3
+        G_pq = 0b000001
+        S = 0b000111
+
+        pairs = get_creation_pairs(G_pq, S, norb)
+        exact = get_creation_pair(G_pq, S, norb)
+
+        assert exact == (1, 2)
+        assert exact in pairs
+
+    def test_case_3_added_1_removed_requires_at_least_one_added_orbital(self):
+        # Here A={1,2,3} and R={4}, so valid pairs must include at least one
+        # orbital from A.
+        norb = 4  # 8 spin-orbitals
+        G_pq = 0b00010001
+        S = 0b00001111
+
+        pairs = get_creation_pairs(G_pq, S, norb)
+
+        A = {1, 2, 3}
+        virtual = [1, 2, 3, 5, 6, 7]  # all unoccupied in G_pq
+        expected = []
+        for i, r in enumerate(virtual):
+            for s in virtual[i + 1:]:
+                if (r in A) or (s in A):
+                    expected.append((r, s))
+
+        assert pairs == expected
+
+    def test_case_4_added_2_removed_requires_both_added_orbitals(self):
+        # Here A={1,2,3,4} and R={5,6}, so valid pairs must lie fully in A.
+        norb = 4  # 8 spin-orbitals
+        G_pq = 0b01100001
+        S = 0b00011111
+
+        pairs = get_creation_pairs(G_pq, S, norb)
+
+        A = [1, 2, 3, 4]
+        expected = [(A[i], A[j]) for i in range(len(A)) for j in range(i + 1, len(A))]
+        assert pairs == expected
+
+    def test_more_than_four_differences_returns_empty(self):
+        # Here A={1,2,3,4,5} and R={7,8,9}, so the determinants are too far apart.
+        norb = 5  # 10 spin-orbitals
+        G_pq = 0b1110000001
+        S = 0b0000111111
+
+        pairs = get_creation_pairs(G_pq, S, norb)
+
+        assert pairs == []
+
+    def test_result_is_sorted_and_canonical(self):
+        norb = 4
+        G_pq = 0b00010001
+        S = 0b00001111
+
+        pairs = get_creation_pairs(G_pq, S, norb)
+
+        assert pairs == sorted(set(pairs))
+        assert all(r < s for r, s in pairs)
 
 class TestDetSubsetSize:
     """Test cutoff-based determinant subset sizing."""
