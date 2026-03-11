@@ -57,6 +57,17 @@ def get_excitation_level(det_i, det_j):
     xor_det = det_i ^ det_j
     return count_electrons(xor_det) // 2
 
+def spatorb2spinorb_det(det_alpha, det_beta, norb):
+    return (det_beta << norb) | det_alpha
+
+def is_spinorbital_occupied(det_alpha, det_beta, spinorb, norb):
+    """
+    given two bitstring determinants for alpha and beta blocks, determine if the
+    *spin*-orbital spinorb is occupied
+    """
+    det = spatorb2spinorb_det(det_alpha, det_beta, norb)
+    return is_orbital_occupied(det, spinorb)
+
 
 def is_orbital_occupied(det_int, orbital_idx):
     """

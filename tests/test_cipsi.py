@@ -5,11 +5,12 @@ Tests for CIPSI operations (particularly selection)
 import os
 import sys
 
-import jax.numpy as jnp
-import pytest
-
 # For development
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
+
+import jax.numpy as jnp
+import pytest
+import cipsipy.determinants as detops
 
 from cipsipy.cipsi import (
         apply_epv_and_single_tagging
@@ -36,7 +37,9 @@ def test_Bmat_epv_single(empty_Bmat):
     Gdet = 0b01110011 # (0011, 0111)
     ps = 4 # 1b
     qs = 1 # 1a
-    Gpq = 0b01100001 # (0001, 0110)
+    Gpq_expected = 0b01100001 # (0001, 0110)
+    G_pq = detops.annihilate(detops.annihilate(Gdet, ps), qs)
+    assert Gpq_expected == G_pq
 
     # diagonals are Pauli-violating
     for rs in range(2*norb):
@@ -53,7 +56,7 @@ def test_Bmat_epv_single(empty_Bmat):
             Bmat_expected = Bmat_expected.at[rs,i].set(False)
             Bmat_expected = Bmat_expected.at[i,rs].set(False)
 
-    Bmat = apply_epv_and_single_tagging(empty_Bmat, ps, qs, Gdet, norb)
+    Bmat = apply_epv_and_single_tagging(ps, qs, Gdet, G_pq, norb)
     print("Got:")
     print(Bmat.astype(int))
     print("Expected:")

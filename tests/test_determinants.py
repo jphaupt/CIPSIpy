@@ -30,6 +30,8 @@ from cipsipy.determinants import (
     sort_wavefunction,
     sort_wavefunction_jax,
     get_det_subset_size,
+    is_spinorbital_occupied,
+    spatorb2spinorb_det
 )
 
 class TestDetSubsetSize:
@@ -87,6 +89,23 @@ class TestDetSubsetSize:
 
 class TestBitstringOperations:
     """Test basic bitstring conversion and counting operations"""
+
+    def test_spatorb2spinorb_det(self):
+        a=0b0011
+        b=0b0101
+        c=0b01010011
+        n=4
+        d = spatorb2spinorb_det(a, b, n)
+        assert d == c
+
+    def test_is_spinorbital_occupied(self):
+        a=0b0011
+        b=0b0101
+        n=4
+        assert is_spinorbital_occupied(a, b, 4, n)
+        assert not is_spinorbital_occupied(a, b, 7, n)
+        assert is_spinorbital_occupied(a, b, 1, n)
+        assert not is_spinorbital_occupied(a, b, 2, n)
 
     def test_get_occupied_indices_simple(self):
         """Test conversion of integer to occupation mask"""
@@ -159,7 +178,6 @@ class TestBitstringOperations:
         # Convert mask back to indices
         recovered_indices = jnp.where(occ_mask)[0]
         assert jnp.array_equal(recovered_indices, jnp.array(occ_indices))
-
 
 class TestAnnihilationCreation:
     """Test annihilation and creation operators"""

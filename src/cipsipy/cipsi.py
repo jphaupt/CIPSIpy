@@ -2,7 +2,7 @@ from cipsipy.determinants import Wavefunction, clear_orbital_bit, get_det_subset
 from cipsipy.hamiltonian import Hamiltonian
 from typing import Tuple
 from cipsipy.fcidump import read_fcidump
-from cipsipy.determinants import is_orbital_occupied
+from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, annihilate
 import jax.numpy as jnp
 
 class CIPSISolver:
@@ -69,10 +69,12 @@ class CIPSISolver:
         # Evar is the current iteration's variational energy
         exit("STUB with outline")
         # outline:
+        self.wfn = self.wfn.coeff_sorted()
         N_gen, N_sel = get_det_subset_size(self.wfn.coeffs, self.n_g, self.n_s)
 
         # get slice views
         det_alpha_gen = self.wfn.dets_alpha[:N_gen]
+        det_beta_gen = self.wfn.dets_beta[:N_gen]
         # also for beta, coeffs
         # also for selectors
 
@@ -83,39 +85,33 @@ class CIPSISolver:
         # TODO or maybe not? See algorithm 14 of thesis
         # loop generators
         # first loop over spin orbitals
-        for p_so in range(2*self.ham.norb):
-            for q_so in range(p_so+1, 2*self.ham.norb):
-                p = spinorb2spatorb(p_so, self.ham.norb) # TODO implement
-                # TODO might also want to a converter for (det_alpha,det_beta) <-> det_spinorb
-                q = spinorb2spatorb(q_so, self.ham.norb)
+        for ps in range(2*self.ham.norb):
+            for qs in range(ps+1, 2*self.ham.norb):
+                # p = spinorb2spatorb(p_so, self.ham.norb) # TODO implement
+                # # TODO might also want to a converter for (det_alpha,det_beta) <-> det_spinorb
+                # q = spinorb2spatorb(q_so, self.ham.norb)
                 for i in range(N_gen):
                     Gdet_alpha = det_alpha_gen[i]
+                    Gdet_beta  = det_beta_gen[i]
+                    Gdet = spatorb2spinorb_det(Gdet_alpha, Gdet_beta, self.ham.norb)
                     # same for beta
                     # coeff
                     # make sure orbitals are occupied
-                    if not is_spinorb_occupied(Gdet_alpha, Gdet_beta, p_so, q_so): # TODO implement
+                    G_pq = annihilate(annihilate(Gdet, ps), qs)
+                    if not G_pq == 0:
                         continue # a_P a_Q G = 0
 
                     # create masks (tagging): impose physicality + uniqueness
-                    physicality_mask = get_physical_mask(Gdet_alpha, Gdet_beta, p_so, q_so) # TODO implement
+                    physicality_mask = apply_epv_and_single_tagging(ps, qs, Gdet, G_pq, self.ham.norb)
 
                     # selector loop -- calculate P_rs(G_pq) perturbation matrix
                     # internally this function will do extra masking as well
-                    Pmat, tagmask = compute_Pmat_batch(Gdet_alpha, Gdet_beta, p_so, q_so, # TODO implement -- might need to change arguments
+                    Pmat, tagmask = compute_Pmat_batch(Gdet_alpha, Gdet_beta, ps, qs, # TODO implement -- might need to change arguments
                                               physicality_mask, self.ham.eri, N_sel)
                     det, epsilon = get_external_determinants_weight(Pmat, tagmask, Evar) # TODO implement
                     dets_ext.append(det)
                     epsilon_ext.append(epsilon)
         return dets_ext, epsilon_ext
-
-    def get_det_subset_size(coeffs, n):
-        """
-        get the number of determinants N such that
-        ```math
-        \sum_{I\leq N} c_I^2 \leq n
-        ```
-        """
-        exit("STUB")
 
 
 # full algorithm:
@@ -126,11 +122,11 @@ class CIPSISolver:
 # 5. Go to iteration n+1 or exit based on convergence criteria (numdets, small E_PT2^(n), small ΔE_FCI, ...)
 
 def apply_epv_and_single_tagging(
-        Bmat,          # Array of shape (2*norb + 1, 2*norb + 1)
-        ps: int,          # spin-orbital index 1
-        qs: int,          # spin-orbital index 2
-        Gdet: int,          # bitstring of original generator
-        norb: int,       # number of spatial orbitals
+        ps: int,     # spin-orbital index 1
+        qs: int,     # spin-orbital index 2
+        Gdet: int,   # bitstring of original generator
+        G_pq: int,   # bitstring of Gdet with ps, qs annihilated
+        norb: int,   # number of spatial orbitals
     ):
     """
     NOTE: this works in spin-orbitals
@@ -145,7 +141,6 @@ def apply_epv_and_single_tagging(
     tagging right at the very end
     I think that is what I will do
     """
-    G_pq = clear_orbital_bit(clear_orbital_bit(Gdet, ps), qs)
     is_p_alpha = ps < norb
     is_q_alpha = qs < norb
     # initialise entirely untagged (True)
