@@ -87,12 +87,9 @@ class CIPSISolver:
         # first loop over spin orbitals
         for ps in range(2*self.ham.norb):
             for qs in range(ps+1, 2*self.ham.norb):
-                # p = spinorb2spatorb(p_so, self.ham.norb) # TODO implement
-                # # TODO might also want to a converter for (det_alpha,det_beta) <-> det_spinorb
-                # q = spinorb2spatorb(q_so, self.ham.norb)
-                for i in range(N_gen):
-                    Gdet_alpha = det_alpha_gen[i]
-                    Gdet_beta  = det_beta_gen[i]
+                for i_gen in range(N_gen):
+                    Gdet_alpha = det_alpha_gen[i_gen]
+                    Gdet_beta  = det_beta_gen[i_gen]
                     Gdet = spatorb2spinorb_det(Gdet_alpha, Gdet_beta, self.ham.norb)
                     # same for beta
                     # coeff
@@ -106,6 +103,10 @@ class CIPSISolver:
 
                     # selector loop -- calculate P_rs(G_pq) perturbation matrix
                     # internally this function will do extra masking as well
+                    # TODO really really hard to work out unit tests for this
+                    # TODO maybe split this into even more loops -- horrible for performance but we can optimise after we know we can recreate FCI
+                    # TODO just create a function for each steps 6-11 in the thesis? Should be doable and easier to test/implement with TDD, though horribly slow
+
                     Pmat, tagmask = compute_Pmat_batch(Gdet_alpha, Gdet_beta, ps, qs, # TODO implement -- might need to change arguments
                                               physicality_mask, self.ham.eri, N_sel)
                     det, epsilon = get_external_determinants_weight(Pmat, tagmask, Evar) # TODO implement
