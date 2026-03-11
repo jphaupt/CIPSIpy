@@ -14,6 +14,7 @@ Separate integers are used for alpha and beta spin electrons.
 
 from dataclasses import dataclass
 
+from typing import Tuple, Optional
 import jax.numpy as jnp
 
 # ============================================================================
@@ -48,6 +49,28 @@ def get_det_subset_size(coeffs, cutoff1, cutoff2):
 # ============================================================================
 # Helper functions for bitwise operations
 # ============================================================================
+
+def get_creation_pair(G_pq: int, S: int, norb: int) -> Optional[Tuple[int, int]]:
+    """
+    Check if there exists a pair (r,s) such that G_pq^rs = S
+
+    G_pq and S are determinants in spinorbitals, i.e. length 2*norb
+
+    Returns
+        Tuple (r, s) if such a pair exists, None otherwise
+    """
+    diff = S ^ G_pq
+    positions = []
+    for i in range(2 * norb):
+        if (diff >> i) & 1:
+            positions.append(i)
+    if len(positions) == 2:
+        # check set in Sdet but not in G_pq
+        r, s = positions[0], positions[1]
+        if ((S >> r) & 1) and ((S >> s) & 1):
+            if not ((G_pq >> r) & 1) and not ((G_pq >> s) & 1):
+                return (r, s)
+    return None
 
 def get_excitation_level(det_i, det_j):
     """

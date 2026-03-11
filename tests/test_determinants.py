@@ -23,6 +23,7 @@ from cipsipy.determinants import (
     find_connected_internal_determinants_oppositespin,
     generate_double_excited_determinants,
     generate_single_excited_determinants,
+    get_creation_pair,
     get_occupied_indices,
     phase_double,
     phase_single,
@@ -33,6 +34,43 @@ from cipsipy.determinants import (
     is_spinorbital_occupied,
     spatorb2spinorb_det
 )
+
+class TestCreationPair:
+    """Test helper that detects two-bit creation pairs between determinants."""
+
+    def test_get_creation_pair_valid_two_creations(self):
+        # G has orbitals 0 and 3 occupied, S has 0,1,2,3 occupied.
+        pair = get_creation_pair(0b1001, 0b1111, 4)
+
+        assert pair == (1, 2)
+
+    def test_get_creation_pair_none_when_no_difference(self):
+        pair = get_creation_pair(0b1010, 0b1010, 4)
+
+        assert pair is None
+
+    def test_get_creation_pair_none_when_single_bit_diff(self):
+        pair = get_creation_pair(0b1000, 0b1100, 4)
+
+        assert pair is None
+
+    def test_get_creation_pair_none_when_more_than_two_bits_differ(self):
+        pair = get_creation_pair(0b0000, 0b1110, 4)
+
+        assert pair is None
+
+    def test_get_creation_pair_none_when_bits_are_removed_not_created(self):
+        # S differs by two bits, but they are occupied in G and empty in S.
+        pair = get_creation_pair(0b1110, 0b1000, 4)
+
+        assert pair is None
+
+    def test_get_creation_pair_handles_beta_block_indices(self):
+        # norb=4 so beta block starts at index 4.
+        # Creations happen at spin-orbitals 5 and 7.
+        pair = get_creation_pair(0b00000001, 0b10100001, 4)
+
+        assert pair == (5, 7)
 
 class TestDetSubsetSize:
     """Test cutoff-based determinant subset sizing."""

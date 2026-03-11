@@ -1,6 +1,6 @@
 from cipsipy.determinants import Wavefunction, clear_orbital_bit, get_det_subset_size
 from cipsipy.hamiltonian import Hamiltonian
-from typing import Tuple
+from typing import Tuple, Optional
 from cipsipy.fcidump import read_fcidump
 from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, annihilate
 import jax.numpy as jnp
@@ -99,7 +99,19 @@ class CIPSISolver:
                         continue # a_P a_Q G = 0
 
                     # create masks (tagging): impose physicality + uniqueness
-                    physicality_mask = apply_epv_and_single_tagging(ps, qs, Gdet, G_pq, self.ham.norb)
+                    tagmask = apply_epv_and_single_tagging(ps, qs, Gdet, G_pq, self.ham.norb)
+                    for j_sel in range(N_sel): # TODO this loop can surely be replaced with matrix manipulation
+                        Sdet_alpha = det_alpha_gen[j_sel]
+                        Sdet_beta  = det_beta_gen[j_sel]
+                        Sdet = spatorb2spinorb_det(Sdet_alpha, Sdet_beta, self.ham.norb)
+                        # Check if there exists (r,s) such that G_pq^rs = S
+                        r_s_pair = get_creation_pair(G_pq, Sdet, self.ham.norb)
+                        if r_s_pair is not None:
+                            tagmask = tagmask.at[r_s_pair[0], r_s_pair[1]].set(False)
+                            tagmask = tagmask.at[r_s_pair[1], r_s_pair[0]].set(False)
+                        # if ∃ (r,s) s.t. S=G_pq^rs, tag
+
+                        #
 
                     # selector loop -- calculate P_rs(G_pq) perturbation matrix
                     # internally this function will do extra masking as well
@@ -108,7 +120,7 @@ class CIPSISolver:
                     # TODO just create a function for each steps 6-11 in the thesis? Should be doable and easier to test/implement with TDD, though horribly slow
 
                     Pmat, tagmask = compute_Pmat_batch(Gdet_alpha, Gdet_beta, ps, qs, # TODO implement -- might need to change arguments
-                                              physicality_mask, self.ham.eri, N_sel)
+                                              tagmask, self.ham.eri, N_sel)
                     det, epsilon = get_external_determinants_weight(Pmat, tagmask, Evar) # TODO implement
                     dets_ext.append(det)
                     epsilon_ext.append(epsilon)
