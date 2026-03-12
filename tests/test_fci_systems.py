@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 from cipsipy.fcidump import read_fcidump
 from cipsipy.hamiltonian import hamiltonian_element
 from cipsipy.diagonaliser import Diagonaliser
+from cipsipy.cipsi import CIPSISolver
 
 
 # ============================================================================
@@ -35,7 +36,6 @@ TEST_SYSTEMS = [
     "Li/sto-3g",
     "LiH/6-31gstar",
 ]
-
 
 # ============================================================================
 # Helper Functions
@@ -134,6 +134,7 @@ def system_data(request, assets_dir):
 
     return {
         "name": system_name,
+        "fcidump_path": str(fcidump_path),
         "n_orb": n_orb,
         "n_alpha": n_alpha,
         "n_beta": n_beta,
@@ -234,6 +235,30 @@ class TestFCISystems:
         )
 
         print(f"  ✓ Pass")
+
+
+class TestCIPSIAgainstFCI:
+    """Validate the final CIPSI ground-state energy against FCI references."""
+
+    def test_ground_state_energy(self, system_data):
+        """Compare the final CIPSI ground-state energy directly to FCI."""
+        name = system_data["name"]
+        e_gs_ref = system_data["e_gs_ref"]
+        solver = CIPSISolver(fcidump_filename=system_data["fcidump_path"])
+
+        e_gs_cipsi = float(solver.run_cipsi())
+
+        print(f"\n{'='*70}")
+        print(f"CIPSI vs FCI: {name}")
+        print(f"{'='*70}")
+        print(f"  FCI reference: {e_gs_ref:.12f} a.u.")
+        print(f"  CIPSI:         {e_gs_cipsi:.12f} a.u.")
+        print(f"  Δ:             {abs(e_gs_cipsi - e_gs_ref):.2e} a.u.")
+
+        tolerance = 1e-8
+        assert abs(e_gs_cipsi - e_gs_ref) < tolerance, (
+            f"CIPSI energy differs from FCI by {abs(e_gs_cipsi - e_gs_ref):.2e} > {tolerance:.2e}"
+        )
 
 
 class TestSystemCoverage:

@@ -1,5 +1,6 @@
 from cipsipy.determinants import Wavefunction, clear_orbital_bit, get_det_subset_size
 from cipsipy.hamiltonian import Hamiltonian
+from cipsipy.diagonaliser import Diagonaliser
 from typing import Tuple, Optional
 from cipsipy.fcidump import read_fcidump
 from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, annihilate, \
@@ -60,6 +61,7 @@ class CIPSISolver:
         #   sort at the start of every cipsi iteration?
 
     def run_unfiltered_selection(self, Evar):
+        # TODO move all the heavy calculations outside this class so it can be JIT'd
         # loop over generators G
         # loop over batch (nonzero doubly-ionised generator G_pq)
         # Init tagging/mask array and Pmat
@@ -68,7 +70,6 @@ class CIPSISolver:
         # more tagging
         # calculate e_α for untagged |α⟩=|G_pq^rs⟩
         # Evar is the current iteration's variational energy
-        # outline:
         self.wfn = self.wfn.coeff_sorted()
         N_gen, N_sel = get_det_subset_size(self.wfn.coeffs, self.n_g, self.n_s)
 
@@ -187,6 +188,20 @@ class CIPSISolver:
                             dets_ext.append((det_alpha, det_beta))
                             epsilon_ext.append(epsilon)
         return dets_ext, epsilon_ext
+
+    def run_cipsi(self):
+        """
+        TODO: the main CIPSI loop (see section 5.1 of thesis)
+        """
+        # diagonalise over set of determinants D_I to get E_var
+        # (this is run_unfiltered_selection):
+        # - find external determinants α∉{D_I}
+        # - compute e_α -- Epstein-Nesbet variational energy at current iteration
+        # compute contributions E_PT2 = ∑_α e_α
+        # E_FCI ≈ E_var + E_PT2 current estimated energy
+        # extract α* subset of external dets α with largest contributions e_α and
+        #   add them to the variational space
+        # go to iteration n+1 or exit based on some criterion (num dets in wfn, low E_pt2, max iters,...)
 
 
 # full algorithm:
