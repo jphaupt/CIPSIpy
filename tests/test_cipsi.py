@@ -13,6 +13,7 @@ import pytest
 import cipsipy.determinants as detops
 
 from cipsipy.cipsi import (
+    CIPSISolver,
         apply_epv_and_single_tagging
 )
 

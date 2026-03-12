@@ -90,6 +90,8 @@ def get_creation_pairs(G_pq: int, S: int, norb: int) -> list[Tuple[int, int]]:
     not intended to mirror a named symbol from the thesis.
 
     Returns canonical pairs with r < s in ascending lexicographic order.
+
+    TODO also calculat the excitation operator T s.t. |S⟩=±T|G_pq^rs⟩
     """
     n_spinorb = 2 * norb
 
@@ -143,6 +145,19 @@ def get_excitation_level(det_i, det_j):
 
 def spatorb2spinorb_det(det_alpha, det_beta, norb):
     return (det_beta << norb) | det_alpha
+
+
+def spinorb2spatorb_det(det_spinorb, norb):
+    """Split a spin-orbital determinant into (alpha, beta) spatial blocks.
+
+    Determinants are stored as ``[alpha block | beta block]`` where the low
+    ``norb`` bits are alpha occupations and the next ``norb`` bits are beta
+    occupations.
+    """
+    mask = (1 << norb) - 1
+    det_alpha = det_spinorb & mask
+    det_beta = det_spinorb >> norb
+    return det_alpha, det_beta
 
 def is_spinorbital_occupied(det_alpha, det_beta, spinorb, norb):
     """

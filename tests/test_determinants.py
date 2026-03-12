@@ -33,6 +33,7 @@ from cipsipy.determinants import (
     sort_wavefunction_jax,
     get_det_subset_size,
     is_spinorbital_occupied,
+    spinorb2spatorb_det,
     spatorb2spinorb_det
 )
 
@@ -223,6 +224,35 @@ class TestBitstringOperations:
         n=4
         d = spatorb2spinorb_det(a, b, n)
         assert d == c
+
+    def test_spinorb2spatorb_det(self):
+        spin_det = 0b01010011
+        n = 4
+
+        det_alpha, det_beta = spinorb2spatorb_det(spin_det, n)
+
+        assert det_alpha == 0b0011
+        assert det_beta == 0b0101
+
+    def test_spinorb_spatorb_det_roundtrip(self):
+        det_alpha = 0b101001
+        det_beta = 0b011010
+        n = 6
+
+        spin_det = spatorb2spinorb_det(det_alpha, det_beta, n)
+        out_alpha, out_beta = spinorb2spatorb_det(spin_det, n)
+
+        assert out_alpha == det_alpha
+        assert out_beta == det_beta
+
+    def test_spinorb2spatorb_det_beta_only(self):
+        n = 4
+        spin_det = 0b10100000
+
+        det_alpha, det_beta = spinorb2spatorb_det(spin_det, n)
+
+        assert det_alpha == 0
+        assert det_beta == 0b1010
 
     def test_is_spinorbital_occupied(self):
         a=0b0011
