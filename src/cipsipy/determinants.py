@@ -734,7 +734,7 @@ class Wavefunction:
         coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction_by_coeffs_jax(
             self.coeffs,
             self.dets_alpha,
-            self.dets.beta,
+            self.dets_beta,
         )
         return (
             Wavefunction(

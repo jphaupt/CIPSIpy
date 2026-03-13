@@ -23,7 +23,7 @@ class Diagonaliser:
         """
         self.nstate = nstate
         self.residual_tol = residual_tol
-        self.max_micro_iterations = max_micro_iterations
+        self.max_micro_iterations = max_micro_iterations # TODO you should actually use this...
         self.max_macro_iterations = max_macro_iterations
         if self.nstate < 1:
             raise ValueError("Cannot have fewer than one state to solve.")
