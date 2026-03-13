@@ -15,15 +15,154 @@ Slater-Condon Rules:
 - 3+ excitations: 0 (orthogonal)
 """
 
+from dataclasses import dataclass
+
 import jax.numpy as jnp
 
 from cipsipy.determinants import (
     count_electrons,
+    find_connected_internal_determinants_beta,
+    find_connected_internal_determinants_oppositespin,
+    construct_A,
+    sort_wavefunction,
     get_occupied_indices,
     phase_double,
     phase_single,
 )
 
+# dataclass to generate boilerplate setters
+# frozen to indicate it is immutable after construction
+@dataclass(frozen=True)
+class Hamiltonian:
+    """Immutable Hamiltonian container for one electronic-structure problem.
+
+    This class stores static integrals and orbital metadata. Numerical kernels
+    remain as top-level pure functions for straightforward JAX usage.
+    """
+
+    norb: int
+    h_core: jnp.ndarray
+    eri: jnp.ndarray
+    e_nuc: float
+
+    def __post_init__(self):
+        if self.norb < 1:
+            raise ValueError("norb must be positive")
+        if self.h_core.shape != (self.norb, self.norb):
+            raise ValueError("h_core must have shape (norb, norb)")
+        if self.eri.shape != (self.norb, self.norb, self.norb, self.norb):
+            raise ValueError("eri must have shape (norb, norb, norb, norb)")
+
+    def diagonal(self, coeffs, dets_alpha, dets_beta):
+        """Return diagonal Hamiltonian elements for the determinant list."""
+        return get_hamiltonian_diagonal(
+            coeffs,
+            dets_alpha,
+            dets_beta,
+            self.norb,
+            self.h_core,
+            self.eri,
+        )
+
+    def element(self, det_i_alpha, det_i_beta, det_j_alpha, det_j_beta):
+        """Return matrix element <D_i|H|D_j>."""
+        return hamiltonian_element(
+            det_i_alpha,
+            det_i_beta,
+            det_j_alpha,
+            det_j_beta,
+            self.norb,
+            self.h_core,
+            self.eri,
+        )
+
+    def matvec(self, coeffs, dets_alpha, dets_beta, diag_h=None):
+        """Return Hamiltonian-vector product without building full H."""
+        diagonal = diag_h
+        if diagonal is None:
+            diagonal = self.diagonal(coeffs, dets_alpha, dets_beta)
+        return hamiltonian_vector_product(
+            coeffs,
+            dets_alpha,
+            dets_beta,
+            diagonal,
+            self.norb,
+            self.h_core,
+            self.eri,
+        )
+
+def get_hamiltonian_diagonal(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
+    h_diag = jnp.zeros_like(coeffs)
+    for i in range(len(h_diag)):
+        # TODO parallelise with vmap
+        h_ii = _diagonal_element(dets_alpha[i], dets_beta[i], norb, h_core, eri)
+        h_diag = h_diag.at[i].set(h_ii)
+    return h_diag
+
+def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, diag_h, norb, h_core, eri):
+    """Build a Hamiltonian matrix-vector product
+
+    This function calculates the product H @ dets without explicitly constructing
+    the Hamiltonian matrix H
+
+    The wave function is |ψ⟩ = ∑c_i |D_i⟩ᵅ|D_i⟩ᵝ. This is described by three
+    parallel arrays:
+    - vector of c_i (coeffs)
+    - vector of alpha determinants |D_i⟩ᵅ (dets_alpha)
+    - vector of beta determinants |D_i⟩ᵝ (dets_beta)
+
+    TODO organise this data into a Wavefunction class -- but be careful with JAX (you need PyTree I think)
+
+    TODO parallelise via JAX -- right now uses some ugly for loops!
+
+    Recall (Hv)_i = ∑_j H_ij c_j
+
+    Args:
+        coeffs: coefficients c_i for the wavefunction |Ψ⟩=∑_i c_i|D_α⟩|D_β⟩
+        dets_alpha: Sequence of alpha-spin determinants |D_α⟩ (bitstring integers)
+        dets_beta: Sequence of beta-spin determinants |D_β⟩ (bitstring integers)
+        diag_h: diagonal of the Hamiltonian
+        norb: Number of spatial orbitals
+        h_core: One-electron integrals [norb, norb]
+        eri: Two-electron integrals [norb, norb, norb, norb]
+    """
+    ndet = len(coeffs)
+    v_out = jnp.zeros(ndet) # return value, Hv
+
+    # first do diagonal contribution: H_ii * c_i
+    v_out = diag_h * coeffs
+
+    # first sort dets (alpha-major)
+    s_c, s_da, s_db, s_idx = sort_wavefunction(coeffs, dets_alpha, dets_beta, norb)
+    A_array_alpha = construct_A(s_da)
+
+    # get beta excitations and add to v_out
+    for i, j in find_connected_internal_determinants_beta(s_da, s_db, A_array_alpha):
+        h_ij = hamiltonian_element(s_da[i], s_db[i], s_da[j], s_db[j], norb, h_core, eri)
+        v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
+        v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
+
+    # get opposite-spin excitations and add to v_out
+    for i, j in find_connected_internal_determinants_oppositespin(s_da, s_db, A_array_alpha):
+        h_ij = hamiltonian_element(s_da[i], s_db[i], s_da[j], s_db[j], norb, h_core, eri)
+        v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
+        v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
+
+    # sort beta-major
+    s_c, s_db, s_da, s_idx = sort_wavefunction(coeffs, dets_beta, dets_alpha, norb)
+    A_array_beta = construct_A(s_db)
+
+    # get alpha excitations and add to v_out
+    for i, j in find_connected_internal_determinants_beta(s_db, s_da, A_array_beta):
+        # h_ij = hamiltonian_element(s_db[i], s_da[i], s_db[j], s_da[j], norb, h_core, eri)
+        h_ij = hamiltonian_element(s_da[i], s_db[i], s_da[j], s_db[j], norb, h_core, eri)
+        v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
+        v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
+    return v_out
+
+# ===========================================================================
+# Bitstring helper functions
+# ===========================================================================
 
 def excitation_level(det_i, det_j):
     """
@@ -38,7 +177,6 @@ def excitation_level(det_i, det_j):
     """
     diff = det_i ^ det_j
     return count_electrons(diff) // 2
-
 
 def get_excitation_operators(det_i, det_j):
     """
@@ -76,6 +214,10 @@ def get_excitation_operators(det_i, det_j):
     return holes, particles
 
 
+# ============================================================================
+# Matrix element evaluation routines
+# ============================================================================
+
 def hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb, h_core, eri):
     """
     Calculate Hamiltonian matrix element between spin-separated determinants.
@@ -89,6 +231,8 @@ def hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb,
 
     Returns:
         Hamiltonian matrix element (float)
+
+    TODO JAX optimisation
     """
     exc_alpha = excitation_level(det_i_alpha, det_j_alpha)
     exc_beta = excitation_level(det_i_beta, det_j_beta)
@@ -131,6 +275,8 @@ def _diagonal_element(det_alpha, det_beta, n_orb, h_core, eri):
             + Σ_{i_α,j_β} (ii|jj)
 
     Chemist's notation: (pq|rs) = eri[p,q,r,s]
+
+    TODO JAX optimisation
     """
     occ_alpha = get_occupied_indices(det_alpha, n_orb)
     occ_beta = get_occupied_indices(det_beta, n_orb)

@@ -13,11 +13,39 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.hamiltonian import (
+    Hamiltonian,
     excitation_level,
     get_excitation_operators,
     hamiltonian_element,
+    hamiltonian_vector_product,
+    get_hamiltonian_diagonal,
 )
 
+import jax
+import jax.numpy as jnp
+
+def generate_random_test_data(n_det, norb, seed=42):
+    key = jax.random.PRNGKey(seed)
+    k1, k2, k3, k4 = jax.random.split(key, 4)
+
+    coeffs = jax.random.normal(k1, (n_det,))
+
+    # Random h_core (must be symmetric)
+    h_rand = jax.random.normal(k2, (norb, norb))
+    h_core = (h_rand + h_rand.T) / 2
+
+    # Random ERI (norb, norb, norb, norb), then enforce basic chemist's
+    # notation symmetries so resulting Hamiltonian is Hermitian:
+    # (pq|rs) = (qp|rs) = (pq|sr) = (rs|pq)
+    eri_raw = jax.random.normal(k3, (norb, norb, norb, norb))
+    eri = (
+        eri_raw
+        + jnp.transpose(eri_raw, (1, 0, 2, 3))
+        + jnp.transpose(eri_raw, (0, 1, 3, 2))
+        + jnp.transpose(eri_raw, (2, 3, 0, 1))
+    ) / 4.0
+
+    return coeffs, h_core, eri
 
 class TestHelperFunctions:
     """Test excitation level and operator extraction functions."""
@@ -28,28 +56,28 @@ class TestHelperFunctions:
 
     def test_excitation_level_single(self):
         """Single excitation gives level 1."""
-        det_i = 3  # 0b0011
-        det_j = 6  # 0b0110
+        det_i = 0b0011
+        det_j = 0b0110
         assert excitation_level(det_i, det_j) == 1
 
     def test_excitation_level_double(self):
         """Double excitation gives level 2."""
-        det_i = 3  # 0b0011
-        det_j = 12  # 0b1100
+        det_i = 0b0011
+        det_j = 0b1100
         assert excitation_level(det_i, det_j) == 2
 
     def test_get_excitation_operators_single(self):
         """Extract correct hole/particle indices for single excitation."""
-        det_i = 3  # 0b0011 (orbitals 0, 1)
-        det_j = 6  # 0b0110 (orbitals 1, 2)
+        det_i = 0b0011 # (orbitals 0, 1)
+        det_j = 0b0110 # (orbitals 1, 2)
         holes, particles = get_excitation_operators(det_i, det_j)
         assert holes == [0]
         assert particles == [2]
 
     def test_get_excitation_operators_double(self):
         """Extract correct hole/particle indices for double excitation."""
-        det_i = 3  # 0b0011 (orbitals 0, 1)
-        det_j = 12  # 0b1100 (orbitals 2, 3)
+        det_i = 0b0011 # (orbitals 0, 1)
+        det_j = 0b1100 # (orbitals 2, 3)
         holes, particles = get_excitation_operators(det_i, det_j)
         assert holes == [0, 1]
         assert particles == [2, 3]
@@ -61,8 +89,8 @@ class TestDiagonalElements:
     def test_diagonal_two_electrons_same_orbital(self):
         """Test diagonal for 2 electrons in same orbital, different spins."""
         # Alpha in orbital 0, beta in orbital 0 (same spatial orbital)
-        det_alpha = 1  # 0b01
-        det_beta = 1   # 0b01
+        det_alpha = 0b01
+        det_beta = 0b01
         n_orb = 2
 
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
@@ -78,8 +106,8 @@ class TestDiagonalElements:
     def test_diagonal_different_orbitals(self):
         """Test diagonal for alpha and beta electrons in different orbitals."""
         # Alpha in orbital 0, beta in orbital 1
-        det_alpha = 1  # 0b01
-        det_beta = 2   # 0b10
+        det_alpha = 0b01
+        det_beta = 0b10
         n_orb = 2
 
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
@@ -95,8 +123,8 @@ class TestDiagonalElements:
     def test_diagonal_alpha_alpha_exchange(self):
         """Test diagonal with alpha-alpha exchange interaction."""
         # Two alpha electrons in orbitals 0 and 1
-        det_alpha = 3  # 0b11
-        det_beta = 0   # 0b00
+        det_alpha = 0b11
+        det_beta = 0b00
         n_orb = 2
 
         h_core = jnp.array([[-1.0, 0.0], [0.0, -0.5]])
@@ -112,6 +140,33 @@ class TestDiagonalElements:
         expected = -1.0 - 0.5 + 0.5 * (0.3 - 0.1)
         assert jnp.isclose(energy, expected, atol=1e-10)
 
+    def test_get_hamiltonian_diagonal_matches_element_diagonal(self):
+        """get_hamiltonian_diagonal should match explicit H_ii elements."""
+        norb = 3
+        da = [0b001, 0b011, 0b101]
+        db = [0b001, 0b010, 0b001]
+        coeffs = jnp.array([0.7, -0.2, 0.5])
+
+        h_core = jnp.array([
+            [1.0, 0.1, -0.2],
+            [0.1, 0.8, 0.3],
+            [-0.2, 0.3, 1.2],
+        ])
+        eri = jnp.zeros((norb, norb, norb, norb))
+        eri = eri.at[0, 0, 0, 0].set(0.4)
+        eri = eri.at[1, 1, 1, 1].set(0.2)
+        eri = eri.at[2, 2, 2, 2].set(0.3)
+        eri = eri.at[0, 0, 1, 1].set(0.1)
+        eri = eri.at[0, 1, 1, 0].set(0.05)
+
+        diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        ref_diag = jnp.array([
+            hamiltonian_element(da[i], db[i], da[i], db[i], norb, h_core, eri)
+            for i in range(len(da))
+        ])
+
+        assert jnp.allclose(diag, ref_diag)
+
 
 class TestSingleExcitations:
     """Test single excitation matrix elements."""
@@ -119,10 +174,10 @@ class TestSingleExcitations:
     def test_single_excitation_alpha(self):
         """Test single alpha excitation."""
         # Initial: α in 0, β in 1; Final: α in 2, β in 1 (α: 0→2)
-        det_i_alpha = 1  # 0b01
-        det_i_beta = 2   # 0b10
-        det_j_alpha = 4  # 0b100
-        det_j_beta = 2   # 0b10
+        det_i_alpha = 0b01
+        det_i_beta = 0b10
+        det_j_alpha = 0b100
+        det_j_beta = 0b10
         n_orb = 3
 
         h_core = jnp.zeros((3, 3))
@@ -143,10 +198,10 @@ class TestSingleExcitations:
     def test_single_excitation_beta(self):
         """Test single beta excitation."""
         # Initial: α in 0, β in 1; Final: α in 0, β in 2 (β: 1→2)
-        det_i_alpha = 1  # 0b01
-        det_i_beta = 2   # 0b10
-        det_j_alpha = 1  # 0b01
-        det_j_beta = 4   # 0b100
+        det_i_alpha = 0b01
+        det_i_beta = 0b10
+        det_j_alpha = 0b01
+        det_j_beta = 0b100
         n_orb = 3
 
         h_core = jnp.zeros((3, 3))
@@ -166,10 +221,10 @@ class TestSingleExcitations:
     def test_single_excitation_negative_phase(self):
         """Test single excitation with negative phase."""
         # Initial: α in 0,1; Final: α in 0,2 (α: 1→2, orbital 1 between them)
-        det_i_alpha = 3  # 0b011
-        det_i_beta = 0   # 0b000
-        det_j_alpha = 5  # 0b101
-        det_j_beta = 0   # 0b000
+        det_i_alpha = 0b011
+        det_i_beta = 0b000
+        det_j_alpha = 0b101
+        det_j_beta = 0b000
         n_orb = 3
 
         h_core = jnp.zeros((3, 3))
@@ -206,10 +261,10 @@ class TestDoubleExcitations:
     def test_double_same_spin_alpha(self):
         """Test double excitation within alpha spin."""
         # Initial: α in 0,1; Final: α in 2,3 (α: 0,1→2,3)
-        det_i_alpha = 3   # 0b0011
-        det_i_beta = 0    # 0b0000
-        det_j_alpha = 12  # 0b1100
-        det_j_beta = 0    # 0b0000
+        det_i_alpha = 0b0011
+        det_i_beta = 0b0000
+        det_j_alpha = 0b1100
+        det_j_beta = 0b0000
         n_orb = 4
 
         h_core = jnp.zeros((4, 4))
@@ -230,10 +285,10 @@ class TestDoubleExcitations:
     def test_double_opposite_spin(self):
         """Test double excitation with opposite spins."""
         # Initial: α in 0, β in 1; Final: α in 2, β in 3 (α: 0→2, β: 1→3)
-        det_i_alpha = 1  # 0b0001
-        det_i_beta = 2   # 0b0010
-        det_j_alpha = 4  # 0b0100
-        det_j_beta = 8   # 0b1000
+        det_i_alpha = 0b0001
+        det_i_beta = 0b0010
+        det_j_alpha = 0b0100
+        det_j_beta = 0b1000
         n_orb = 4
 
         h_core = jnp.zeros((4, 4))
@@ -253,10 +308,10 @@ class TestDoubleExcitations:
     def test_triple_excitation_zero(self):
         """Test that triple or higher excitations return 0."""
         # Initial: α in 0,1,2; Final: α in 3,4,5 (3 excitations)
-        det_i_alpha = 7   # 0b000111
-        det_i_beta = 0    # 0b000000
-        det_j_alpha = 56  # 0b111000
-        det_j_beta = 0    # 0b000000
+        det_i_alpha = 0b000111
+        det_i_beta = 0b000000
+        det_j_alpha = 0b111000
+        det_j_beta = 0b000000
         n_orb = 6
 
         h_core = jnp.zeros((6, 6))
@@ -266,6 +321,92 @@ class TestDoubleExcitations:
 
         assert element == 0.0
 
+class TestMatrixVectorProducts:
+    @staticmethod
+    def get_reference_matvec(coeffs, da, db, norb, h_core, eri):
+        """Helper function: brute force reference under Hermitian assumption."""
+        n = len(da)
+        H = jnp.zeros((n, n))
+        for i in range(n):
+            for j in range(i, n):
+                hij = hamiltonian_element(da[i], db[i], da[j], db[j], norb, h_core, eri)
+                H = H.at[i, j].set(hij)
+                H = H.at[j, i].set(hij)
+        return jnp.dot(H, coeffs)
+
+    def test_hvp_minimal_beta(self):
+        # 2 orbitals, alpha is fixed, beta is excited
+        norb = 2
+        da = [0b01, 0b01]
+        db = [0b01, 0b10]
+        coeffs = jnp.array([1.0, 0.2])
+
+        # dummy integrals
+        h_core = jnp.eye(norb)
+        eri = jnp.zeros((norb, norb, norb, norb))
+
+        expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+        h_diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
+
+        assert jnp.allclose(actual, expected)
+
+
+class TestHamiltonianClass:
+    @staticmethod
+    def get_reference_matvec(coeffs, da, db, norb, h_core, eri):
+        return TestMatrixVectorProducts.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+
+    def test_class_wrappers_match_functional_api(self):
+        norb = 2
+        da = [0b01, 0b01]
+        db = [0b01, 0b10]
+        coeffs = jnp.array([1.0, 0.2])
+
+        h_core = jnp.array([[1.0, 0.5], [0.5, 1.0]])
+        eri = jnp.zeros((norb, norb, norb, norb))
+
+        ham = Hamiltonian(norb=norb, h_core=h_core, eri=eri, e_nuc=0.)
+
+        diag_fn = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        diag_cls = ham.diagonal(coeffs, da, db)
+        assert jnp.allclose(diag_cls, diag_fn)
+
+        elem_fn = hamiltonian_element(da[0], db[0], da[1], db[1], norb, h_core, eri)
+        elem_cls = ham.element(da[0], db[0], da[1], db[1])
+        assert jnp.isclose(elem_cls, elem_fn)
+
+        hvp_fn = hamiltonian_vector_product(coeffs, da, db, diag_fn, norb, h_core, eri)
+        hvp_cls = ham.matvec(coeffs, da, db, diag_fn)
+        assert jnp.allclose(hvp_cls, hvp_fn)
+
+    def test_hvp_alpha_beta_mix(self):
+        norb = 2
+        da = [0b01, 0b10, 0b01]
+        db = [0b01, 0b01, 0b10]
+        coeffs = jnp.array([1.0, 0.5, -0.2])
+
+        h_core = jnp.array([[1.0, 0.5], [0.5, 1.0]])
+        eri = jnp.zeros((norb, norb, norb, norb))
+
+        expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+        h_diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
+
+        assert jnp.allclose(actual, expected)
+
+    def test_larger_system_5x5(self):
+        norb = 4
+        ndets = 5
+        coeffs, h_core, eri = generate_random_test_data(ndets, norb)
+        da = [0b0011, 0b0011, 0b0101, 0b1100, 0b1100]
+        db = [0b0011, 0b0110, 0b0011, 0b0011, 0b1100]
+
+        expected = self.get_reference_matvec(coeffs, da, db, norb, h_core, eri)
+        h_diag = get_hamiltonian_diagonal(coeffs, da, db, norb, h_core, eri)
+        actual = hamiltonian_vector_product(coeffs, da, db, h_diag, norb, h_core, eri)
+
+        assert jnp.allclose(actual, expected)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

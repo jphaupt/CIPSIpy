@@ -20,6 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
 from cipsipy.fcidump import read_fcidump
 from cipsipy.hamiltonian import hamiltonian_element
+from cipsipy.diagonaliser import Diagonaliser
+from cipsipy.cipsi import CIPSISolver
 
 
 # ============================================================================
@@ -35,6 +37,16 @@ TEST_SYSTEMS = [
     "LiH/6-31gstar",
 ]
 
+# Systems small enough (norb=2, 4 FCI dets) for full CIPSI convergence tests.
+# Larger systems are excluded because the current pure-Python selection loop is
+# O((2N)^2 * N_gen * N_sel * (2N)^2) and times out beyond ~4 spin-orbitals.
+CIPSI_CORRECTNESS_SYSTEMS = [
+    "H2/sto-3g",
+    "HeH+/sto-3g",
+]
+
+# One medium system used for the smoke test (max_dets caps iteration cost).
+CIPSI_SMOKE_SYSTEM = "H3+/3-21g"
 
 # ============================================================================
 # Helper Functions
@@ -133,6 +145,7 @@ def system_data(request, assets_dir):
 
     return {
         "name": system_name,
+        "fcidump_path": str(fcidump_path),
         "n_orb": n_orb,
         "n_alpha": n_alpha,
         "n_beta": n_beta,
@@ -140,6 +153,40 @@ def system_data(request, assets_dir):
         "e_nuc": e_nuc,
         "H": H_with_enuc,
         "H_ref": H_ref,
+        "e_gs_ref": e_gs_ref,
+    }
+
+
+@pytest.fixture(scope="module", params=CIPSI_CORRECTNESS_SYSTEMS)
+def cipsi_correctness_system_data(request, assets_dir):
+    """
+    Minimal system data for CIPSI correctness tests.
+    Only loads what CIPSISolver needs: the FCIDUMP path and the FCI reference
+    energy.  Restricted to the two 2-orbital systems whose tiny FCI space
+    (4 determinants each) lets the pure-Python selection loop finish quickly.
+    """
+    system_name = request.param
+    system_path = assets_dir / system_name.replace("/", os.sep)
+    fcidump_path = system_path / "FCIDUMP"
+    with open(system_path / "e_gs.txt") as f:
+        e_gs_ref = float(f.read().strip())
+    return {
+        "name": system_name,
+        "fcidump_path": str(fcidump_path),
+        "e_gs_ref": e_gs_ref,
+    }
+
+
+@pytest.fixture(scope="module")
+def cipsi_smoke_system_data(assets_dir):
+    """System data for the CIPSI smoke test (H3+/3-21g, capped at max_dets)."""
+    system_path = assets_dir / CIPSI_SMOKE_SYSTEM.replace("/", os.sep)
+    fcidump_path = system_path / "FCIDUMP"
+    with open(system_path / "e_gs.txt") as f:
+        e_gs_ref = float(f.read().strip())
+    return {
+        "name": CIPSI_SMOKE_SYSTEM,
+        "fcidump_path": str(fcidump_path),
         "e_gs_ref": e_gs_ref,
     }
 
@@ -193,15 +240,26 @@ class TestFCISystems:
         print(f"Ground State Energy: {name}")
         print(f"{'='*70}")
 
+        # dense diagonalisation
         eigenvalues = jnp.linalg.eigh(H)[0]
         e_gs_computed = float(eigenvalues[0])
 
+        # Davidson diagonalisation
+        tolerance = 1e-12
+        solver = Diagonaliser(H_diag=jnp.diag(H), nstate=1, residual_tol=tolerance)
+        evals_davidson, _ = solver.davidson(lambda v: H @ v)
+        e0_davidson = float(evals_davidson[0])
+
         print(f"  Reference: {e_gs_ref:.12f} a.u.")
         print(f"  Computed:  {e_gs_computed:.12f} a.u.")
+        print(f"  Computed (Davidson):  {e0_davidson:.12f} a.u.")
         print(f"  Δ:         {abs(e_gs_computed - e_gs_ref):.2e} a.u.")
 
-        tolerance = 1e-12
         energy_diff = abs(e_gs_computed - e_gs_ref)
+        assert energy_diff < tolerance, (
+            f"Energy differs by {energy_diff:.2e} > {tolerance:.2e}"
+        )
+        energy_diff = abs(e0_davidson - e_gs_ref)
         assert energy_diff < tolerance, (
             f"Energy differs by {energy_diff:.2e} > {tolerance:.2e}"
         )
@@ -222,6 +280,66 @@ class TestFCISystems:
         )
 
         print(f"  ✓ Pass")
+
+
+class TestCIPSIAgainstFCI:
+    """Validate the final CIPSI ground-state energy against FCI references."""
+
+    def test_ground_state_energy(self, cipsi_correctness_system_data):
+        """
+        Full CIPSI convergence to FCI ground state.
+
+        Only run on tiny 2-orbital systems (H2, HeH+) where the unoptimised
+        pure-Python selection loop terminates in reasonable time.  See
+        PERFORMANCE_PLAN.md for the roadmap to support larger systems.
+        """
+        name = cipsi_correctness_system_data["name"]
+        e_gs_ref = cipsi_correctness_system_data["e_gs_ref"]
+        solver = CIPSISolver(fcidump_filename=cipsi_correctness_system_data["fcidump_path"])
+
+        e_var, _ = solver.run_cipsi()
+        e_gs_cipsi = float(e_var)
+
+        print(f"\n{'='*70}")
+        print(f"CIPSI vs FCI: {name}")
+        print(f"{'='*70}")
+        print(f"  FCI reference: {e_gs_ref:.12f} a.u.")
+        print(f"  CIPSI:         {e_gs_cipsi:.12f} a.u.")
+        print(f"  Δ:             {abs(e_gs_cipsi - e_gs_ref):.2e} a.u.")
+
+        tolerance = 1e-8
+        assert abs(e_gs_cipsi - e_gs_ref) < tolerance, (
+            f"CIPSI energy differs from FCI by {abs(e_gs_cipsi - e_gs_ref):.2e} > {tolerance:.2e}"
+        )
+
+    def test_cipsi_smoke_larger_system(self, cipsi_smoke_system_data):
+        """
+        Smoke test: CIPSI runs without error on a medium system when capped at
+        max_dets=5.  Does not assert convergence to FCI — only that the solver
+        produces a finite energy below the HF reference.
+        """
+        name = cipsi_smoke_system_data["name"]
+        solver = CIPSISolver(fcidump_filename=cipsi_smoke_system_data["fcidump_path"])
+        hf_energy = float(solver.ham.element(
+            int(solver.wfn.dets_alpha[0]),
+            int(solver.wfn.dets_beta[0]),
+            int(solver.wfn.dets_alpha[0]),
+            int(solver.wfn.dets_beta[0]),
+        )) + solver.ham.e_nuc
+
+        e_var, _ = solver.run_cipsi(max_dets=5)
+        e_cipsi = float(e_var)
+
+        print(f"\n{'='*70}")
+        print(f"CIPSI smoke ({name}, max_dets=5)")
+        print(f"{'='*70}")
+        print(f"  HF energy:     {hf_energy:.12f} a.u.")
+        print(f"  CIPSI (capped):{e_cipsi:.12f} a.u.")
+
+        assert np.isfinite(e_cipsi), "CIPSI returned a non-finite energy"
+        assert e_cipsi < hf_energy, (
+            f"CIPSI energy {e_cipsi:.12f} is not below HF {hf_energy:.12f}"
+        )
 
 
 class TestSystemCoverage:

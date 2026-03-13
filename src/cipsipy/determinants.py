@@ -12,11 +12,160 @@ Determinants are represented as integers where each bit represents an orbital:
 Separate integers are used for alpha and beta spin electrons.
 """
 
+from dataclasses import dataclass
+from itertools import combinations
+
+from typing import Tuple, Optional
 import jax.numpy as jnp
+
+# ============================================================================
+# Utility functions
+# ============================================================================
+
+def spinorb2spatorb(p_so: int, norb: int) -> tuple[int, bool]:
+    """
+    converts spinorbital index to spatial orbital index, given norb spatial
+    orbitals. It also returns True if the p_so refers to an electron in the alpha
+    block, False for the beta block
+    Note we store alpha then beta, so for example
+    spinorb2spatorb(6, 4) -> 2, False
+    spinorb2spatorb(2, 4) -> 2, True
+    """
+    if p_so < norb:
+        return p_so, True
+    else:
+        return p_so - norb, False
+
+def get_det_subset_size(coeffs, cutoff1, cutoff2):
+    """
+    Given coeffs c_i, get two integer values N1 N2 corresponding to the cutoffs
+    cutoff1 = \sum_{i=1}^N |c_i|^2
+    Precondition: coeffs are sorted according to |c_i|^2
+    """
+    cumsum = jnp.cumsum(jnp.abs(coeffs)**2)
+    N1 = jnp.searchsorted(cumsum, cutoff1 * cumsum[-1])
+    N2 = jnp.searchsorted(cumsum, cutoff2 * cumsum[-1])
+    return min(int(N1)+1, len(coeffs)), min(int(N2)+1, len(coeffs)) # plus one to correct from 0-based indexing
 
 # ============================================================================
 # Helper functions for bitwise operations
 # ============================================================================
+
+def get_creation_pair(G_pq: int, S: int, norb: int) -> Optional[Tuple[int, int]]:
+    """
+    Check if there exists a pair (r,s) such that G_pq^rs = S
+
+    G_pq and S are determinants in spinorbitals, i.e. length 2*norb
+
+    Returns
+        Tuple (r, s) if such a pair exists, None otherwise
+    """
+    diff = S ^ G_pq
+    positions = []
+    for i in range(2 * norb):
+        if (diff >> i) & 1:
+            positions.append(i)
+    if len(positions) == 2:
+        # check set in Sdet but not in G_pq
+        r, s = positions[0], positions[1]
+        if ((S >> r) & 1) and ((S >> s) & 1):
+            if not ((G_pq >> r) & 1) and not ((G_pq >> s) & 1):
+                return (r, s)
+    return None
+
+
+def get_creation_pairs(G_pq: int, S: int, norb: int) -> list[Tuple[int, int]]:
+    """
+    Return all creation pairs (r, s) such that |G_pq^(rs)> is at most a double
+    excitation away from |S>.
+
+    The logic follows the case split described in Garniron's thesis.
+
+    We use local shorthand here:
+        A = occ(S) \ occ(G_pq)
+        R = occ(G_pq) \ occ(S)
+    where occ(det) is the set of occupied spin-orbitals in ``det``.
+
+    This ``A``/``R`` notation is only explanatory for the implementation; it is
+    not intended to mirror a named symbol from the thesis.
+
+    Returns canonical pairs with r < s in ascending lexicographic order.
+
+    TODO also calculate the excitation operator T s.t. |S⟩=±T|G_pq^rs⟩
+    """
+    n_spinorb = 2 * norb
+
+    added = []
+    removed = []
+    virtual_in_gpq = []
+    for i in range(n_spinorb):
+        g_occ = (G_pq >> i) & 1
+        s_occ = (S >> i) & 1
+        if s_occ and not g_occ:
+            added.append(i)
+        elif g_occ and not s_occ:
+            removed.append(i)
+        if not g_occ:
+            virtual_in_gpq.append(i)
+
+    # Expected precondition for doubly-ionized G_pq relative to S.
+    if len(added) - len(removed) != 2:
+        return []
+
+    pairs: list[Tuple[int, int]] = []
+    added_set = set(added)
+    outside_added_virtual = [i for i in virtual_in_gpq if i not in added_set]
+
+    # Case 1: |A|=2, |R|=0 -> all virtual pairs are allowed.
+    if len(added) == 2 and len(removed) == 0:
+        pairs.extend(combinations(virtual_in_gpq, 2))
+    # Case 2: |A|=3, |R|=1 -> at least one created orbital must come from A.
+    elif len(added) == 3 and len(removed) == 1:
+        pairs.extend(combinations(added, 2))
+        for r in added:
+            for s in outside_added_virtual:
+                pairs.append((r, s) if r < s else (s, r))
+    # Case 3: |A|=4, |R|=2 -> both created orbitals must come from A.
+    elif len(added) == 4 and len(removed) == 2:
+        pairs.extend(combinations(added, 2))
+    # Case 4: more differences -> not connected by <= double excitation.
+    else:
+        return []
+
+    # Normalize and sort deterministically.
+    return sorted(set(pairs))
+
+def get_excitation_level(det_i, det_j):
+    """
+    get excitation level between bitstring-represented determinants det_i and det_j
+    i.e. 1/2 ||I⊕J||
+    """
+    xor_det = det_i ^ det_j
+    return count_electrons(xor_det) // 2
+
+def spatorb2spinorb_det(det_alpha, det_beta, norb):
+    return (det_beta << norb) | det_alpha
+
+
+def spinorb2spatorb_det(det_spinorb, norb):
+    """Split a spin-orbital determinant into (alpha, beta) spatial blocks.
+
+    Determinants are stored as ``[alpha block | beta block]`` where the low
+    ``norb`` bits are alpha occupations and the next ``norb`` bits are beta
+    occupations.
+    """
+    mask = (1 << norb) - 1
+    det_alpha = det_spinorb & mask
+    det_beta = det_spinorb >> norb
+    return det_alpha, det_beta
+
+def is_spinorbital_occupied(det_alpha, det_beta, spinorb, norb):
+    """
+    given two bitstring determinants for alpha and beta blocks, determine if the
+    *spin*-orbital spinorb is occupied
+    """
+    det = spatorb2spinorb_det(det_alpha, det_beta, norb)
+    return is_orbital_occupied(det, spinorb)
 
 
 def is_orbital_occupied(det_int, orbital_idx):
@@ -64,6 +213,168 @@ def clear_orbital_bit(det_int, orbital_idx):
 # ============================================================================
 # Core determinant operations
 # ============================================================================
+
+def construct_A(sorted_alpha):
+    """
+    helper function for finding connected internal determinants, called A in the
+    thesis by garniron
+
+    A[n] tells you the index of the nth unique appearance of a value in the sorted
+    array sorted_alpha
+    """
+    A = [0]
+    for i in range(1, len(sorted_alpha)):
+        if sorted_alpha[i] != sorted_alpha[i-1]:
+            A.append(i)
+    A.append(len(sorted_alpha))
+    return A
+
+def find_connected_internal_determinants_beta(dets_alpha, dets_beta, A_indices):
+    """
+    algorithm 9 of the thesis - finds all single- and double-connected determinants
+    in the list dets. This gives all beta single- and double-excitations (to get
+    alpha, just swap the spins)
+
+    PRECONDITION: the arrays are sorted in alpha-major order
+
+    Yields:
+        Tuples of determinant index pairs (i, j) that are connected.
+    """
+    # A_indices = construct_A(dets_alpha)
+    # iterate over unique alpha blocks (A stores block starts and a sentinel)
+    for a in range(len(A_indices) - 1):
+        # all determinants sharing alpha part are in the range A[a], A[a+1)-1
+        for b1 in range(A_indices[a], A_indices[a + 1]):
+            for b2 in range(b1 + 1, A_indices[a + 1]):
+                if get_excitation_level(dets_beta[b1], dets_beta[b2]) <= 2:
+                    yield (b1, b2)
+
+def find_connected_internal_determinants_oppositespin(dets_alpha, dets_beta, A_indices):
+    """
+    algorithm 10 of garniron's thesis: sequential opposite-spin internal det
+    connectivity finder, i.e. find all alpha-beta double excitations
+
+    PRECONDITION: determinants are sorted in alpha-major order
+
+    NOTE this is a slow/sequential implementation
+
+    TODO parallelise via JAX (his algorithm 12 is good for CPUs)
+
+    Yields:
+        Tuples of determinant index pairs (i, j) that are connected.
+    """
+    for a1 in range(len(A_indices)-1):
+        for a2 in range(a1+1, len(A_indices)-1):
+            alpha_1 = dets_alpha[A_indices[a1]]
+            alpha_2 = dets_alpha[A_indices[a2]]
+            if get_excitation_level(alpha_1, alpha_2) != 1:
+                continue
+            for b1 in range(A_indices[a1], A_indices[a1+1]):
+                for b2 in range(A_indices[a2], A_indices[a2+1]):
+                    if get_excitation_level(dets_beta[b1], dets_beta[b2]) == 1:
+                        yield (b1, b2)
+
+def radix_sort_rec(dets, i, keys=None) -> tuple[list[int], list[int]]:
+    """
+    algorithm 11 of the thesis implemented "manually" -- no fancy JAX business
+    i.e. it is a standard recursive implementation of the radix sort algorithm
+    works for nonnegative integers
+
+    Args:
+        dets: The list of integers (determinants) to sort
+        i: The index of the bit we are currently inspecting (e.g., 63 down to 0)
+        keys: optional list of keys (use None for standard argsort -- used for recursion)
+
+    Returns:
+        sorted_dets: the sorted list (dets)
+        sorted_keys: original indices, sorted
+
+    note: to sort arbitrary 64-bit integers, use i = 63
+
+    TODO: speed up with parallelism/jax
+    """
+    # initialize keys on first call
+    if keys is None:
+        keys = list(range(len(dets)))
+
+    # base case - all bits have been checked or no elements ([] is sorted)
+    if i < 0 or len(dets) == 0:
+        return dets, keys
+
+    dets0 = []  # pigeonhole for bit == 0
+    dets1 = []  # pigeonhole for bit == 1
+    keys0 = []
+    keys1 = []
+
+    # check the i-th bit of every determinant in dets
+    for d, k in zip(dets, keys):
+        if is_orbital_occupied(d, i):
+            dets1.append(d)
+            keys1.append(k)
+        else:
+            dets0.append(d)
+            keys0.append(k)
+
+    dets0_sorted, keys0_sorted = radix_sort_rec(dets0, i - 1, keys0)
+    dets1_sorted, keys1_sorted = radix_sort_rec(dets1, i - 1, keys1)
+
+    return dets0_sorted + dets1_sorted, keys0_sorted + keys1_sorted
+
+def sort_wavefunction(coeffs, dets_alpha, dets_beta, norb, sort_alg=radix_sort_rec):
+    """
+    TODO since we are using recursive radix right now, it does not work well with
+        JAX, so we coerce JAX arrays to Python lists, then convert back to JAX arrays
+        This is obviously not a great long-term solution, and we need to use JAX
+        parallelism
+
+    Sorts the wavefunction in alpha-major order, given a number of spatial
+    orbitals norb, using the sorting algorithm sort_alg.
+    The coeffs, dets_alpha, and dets_beta are all reordered so they
+    remain physically consistent.
+    """
+    if len(coeffs) == 0:
+        raise ValueError("Wavefunction cannot be empty.")
+
+    coeffs = jnp.asarray(coeffs)
+    dets_alpha = jnp.asarray(dets_alpha)
+    dets_beta = jnp.asarray(dets_beta)
+
+    # pass dets_alpha as keys so it follows dets_beta's movement
+    _, keys = sort_alg(dets_beta.tolist(), norb - 1)
+
+    keys_array = jnp.asarray(keys, dtype=jnp.int32)
+    alpha_sorted = dets_alpha[keys_array]
+
+    # then primary key
+    final_alpha, final_keys = sort_alg(alpha_sorted.tolist(), norb - 1, keys)
+    final_keys_array = jnp.asarray(final_keys, dtype=jnp.int32)
+    final_beta = dets_beta[final_keys_array]
+    final_coeffs = coeffs[final_keys_array]
+
+    return jnp.array(final_coeffs), jnp.array(final_alpha), jnp.array(final_beta), final_keys
+
+def sort_wavefunction_jax(coeffs, dets_alpha, dets_beta, norb):
+    """
+    Sorts determinants and coeffs in alpha-major order using JAX built-ins.
+    lexsort( (secondary_key, primary_key) )
+    """
+    # lexsort sorts by the last array in the tuple first.
+    # To get alpha-major (alpha first, then beta), we pass (beta, alpha).
+    idx = jnp.lexsort((dets_beta, dets_alpha))
+    return coeffs[idx], dets_alpha[idx], dets_beta[idx], idx
+
+def sort_wavefunction_by_coeffs_jax(coeffs, dets_alpha, dets_beta):
+    """
+    Sorts determinants and coeffs according to square of coeffs in descending order
+
+    TODO I am quite confused by this: we need the wave function sorted in terms
+        of coeffs^2, but this requires NlogN as far as I'm aware, yet we went
+        through so much effort with radix sort to sort in O(N) time. Doesn't this
+        effectively undermine all that effort?
+    """
+    idx = jnp.argsort(coeffs**2)[::-1]
+    # jnp.argsort(coeffs.real**2 + coeffs.imag**2)[::-1]  # For complex coeffs
+    return coeffs[idx], dets_alpha[idx], dets_beta[idx], idx
 
 
 def get_occupied_indices(det_int, n_orbitals):
@@ -244,6 +555,70 @@ def apply_single_excitation(det_int, i, a):
     return new_det, phase
 
 
+def generate_single_excited_determinants(det_int, n_orbitals):
+    """Generate all single-excited determinants
+
+    Args:
+        det_int: Integer representation of determinant
+        n_orbitals: Number of spatial orbitals
+
+    Returns:
+        List of integer determinants reachable by valid single excitations.
+    """
+    occupied = []
+    virtual = []
+    for orbital in range(n_orbitals):
+        if is_orbital_occupied(det_int, orbital):
+            occupied.append(orbital)
+        else:
+            virtual.append(orbital)
+
+    excited_dets = []
+    for i in occupied:
+        for a in virtual:
+            new_det = clear_orbital_bit(det_int, i)
+            new_det = set_orbital_bit(new_det, a)
+            excited_dets.append(new_det)
+
+    return excited_dets
+
+
+def generate_double_excited_determinants(det_int, n_orbitals):
+    """Generate all double-excited determinants
+
+    Args:
+        det_int: Integer representation of determinant
+        n_orbitals: Number of spatial orbitals
+
+    Returns:
+        List of integer determinants reachable by valid double excitations.
+    """
+    occupied = []
+    virtual = []
+    for orbital in range(n_orbitals):
+        if is_orbital_occupied(det_int, orbital):
+            occupied.append(orbital)
+        else:
+            virtual.append(orbital)
+
+    excited_dets = []
+    for occ_i in range(len(occupied)):
+        i = occupied[occ_i]
+        for occ_j in range(occ_i + 1, len(occupied)):
+            j = occupied[occ_j]
+            for vir_a in range(len(virtual)):
+                a = virtual[vir_a]
+                for vir_b in range(vir_a + 1, len(virtual)):
+                    b = virtual[vir_b]
+                    new_det = clear_orbital_bit(det_int, i)
+                    new_det = clear_orbital_bit(new_det, j)
+                    new_det = set_orbital_bit(new_det, a)
+                    new_det = set_orbital_bit(new_det, b)
+                    excited_dets.append(new_det)
+
+    return excited_dets
+
+
 def phase_double(det_int, i, j, a, b):
     """
     Calculate fermionic phase for double excitation i,j -> a,b.
@@ -335,3 +710,86 @@ def apply_double_excitation(det_int, i, j, a, b):
     new_det = set_orbital_bit(new_det, b)
 
     return new_det, phase
+
+@dataclass(frozen=True)
+class Wavefunction:
+    """Immutable container for CI wavefunction amplitudes and determinants.
+
+    This mirrors the functional API in this module while providing a grouped
+    object for coefficients and determinant arrays.
+    """
+
+    coeffs: jnp.ndarray
+    dets_alpha: jnp.ndarray
+    dets_beta: jnp.ndarray
+    norb: int
+
+    def __post_init__(self):
+        if self.norb < 1:
+            raise ValueError("norb must be positive")
+        if len(self.coeffs) != len(self.dets_alpha) or len(self.coeffs) != len(self.dets_beta):
+            raise ValueError("coeffs, dets_alpha, and dets_beta must have the same length")
+
+    def coeff_sorted(self):
+        coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction_by_coeffs_jax(
+            self.coeffs,
+            self.dets_alpha,
+            self.dets_beta,
+        )
+        return (
+            Wavefunction(
+                coeffs=coeffs_sorted,
+                dets_alpha=alpha_sorted,
+                dets_beta=beta_sorted,
+                norb=self.norb,
+            ),
+            idx,
+        )
+
+    def alpha_sorted(self, sort_alg=radix_sort_rec):
+        """Return alpha-major sorted wavefunction and the sort index list."""
+        coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction(
+            self.coeffs,
+            self.dets_alpha,
+            self.dets_beta,
+            self.norb,
+            sort_alg=sort_alg,
+        )
+        return (
+            Wavefunction(
+                coeffs=coeffs_sorted,
+                dets_alpha=alpha_sorted,
+                dets_beta=beta_sorted,
+                norb=self.norb,
+            ),
+            idx,
+        )
+
+    def alpha_sorted_jax(self):
+        """Return alpha-major sorted wavefunction using JAX lexsort."""
+        coeffs_sorted, alpha_sorted, beta_sorted, idx = sort_wavefunction_jax(
+            self.coeffs,
+            self.dets_alpha,
+            self.dets_beta,
+            self.norb,
+        )
+        return (
+            Wavefunction(
+                coeffs=coeffs_sorted,
+                dets_alpha=alpha_sorted,
+                dets_beta=beta_sorted,
+                norb=self.norb,
+            ),
+            idx,
+        )
+
+    def with_coeffs(self, coeffs):
+        """Return a new wavefunction with updated coefficients."""
+        if len(coeffs) != len(self.dets_alpha):
+            raise ValueError("coeffs must have the same length as determinant arrays")
+        return Wavefunction(
+            coeffs=jnp.asarray(coeffs),
+            dets_alpha=self.dets_alpha,
+            dets_beta=self.dets_beta,
+            norb=self.norb,
+        )
