@@ -91,7 +91,7 @@ def get_creation_pairs(G_pq: int, S: int, norb: int) -> list[Tuple[int, int]]:
 
     Returns canonical pairs with r < s in ascending lexicographic order.
 
-    TODO also calculat the excitation operator T s.t. |S⟩=±T|G_pq^rs⟩
+    TODO also calculate the excitation operator T s.t. |S⟩=±T|G_pq^rs⟩
     """
     n_spinorb = 2 * norb
 

@@ -115,5 +115,4 @@ def test_davidson_with_sparse_qc_matvec():
     expected = jnp.linalg.eigvalsh(H)[0]
     assert jnp.allclose(energies[0], expected, atol=1e-8)
 
-# TODO tests for larger systems, for real systems (see assets files) against FCI
 # TODO tests for excited states

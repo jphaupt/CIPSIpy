@@ -67,9 +67,9 @@ class CIPSISolver:
         )
 
     def run_unfiltered_selection(self, Evar):
-        # TODO move all the heavy calculations outside this class so it can be JIT'd
+        # FIXME move all the heavy calculations outside this class so it can be JIT'd
         # Evar is the current iteration's variational energy
-        # FIXME there is probably a more intelligent way to go about this,
+        # FIXME there is probably a more intelligent way to go about ensuring the coeffs are sorted,
         # otherwise we would not be using radix sort elsewhere (see thesis sec 4.2)
         self.wfn, _ = self.wfn.coeff_sorted()
         N_gen, N_sel = get_det_subset_size(self.wfn.coeffs, self.n_g, self.n_s)
@@ -83,7 +83,7 @@ class CIPSISolver:
         dets_ext_alpha = []
         dets_ext_beta  = []
         epsilon_ext = []
-        # TODO instead of looping over spinorbitals, loop over spatorbs for each spin case (aa, bb,ab)
+        # FIXME instead of looping over spinorbitals, loop over spatorbs for each spin case (aa, bb,ab)
         #   this should be more efficient and you only need to store NxN for Pmat instead of (2N)x(2N)
         #   Even better: use JAX vectorisation wherever possible
         for ps in range(2*self.ham.norb):
@@ -101,7 +101,7 @@ class CIPSISolver:
 
                     # create masks (tagging): impose physicality + uniqueness
                     tagmask = apply_epv_and_single_tagging(ps, qs, Gdet, G_pq, self.ham.norb)
-                    for j_sel in range(N_sel): # TODO this loop can surely be replaced with matrix manipulation
+                    for j_sel in range(N_sel): # FIXME this loop can surely be replaced with matrix manipulation
                         Sdet_alpha = det_alpha_sel[j_sel]
                         Sdet_beta  = det_beta_sel[j_sel]
                         Sdet = spatorb2spinorb_det(Sdet_alpha, Sdet_beta, self.ham.norb)
@@ -127,7 +127,7 @@ class CIPSISolver:
                             # ⟨D1|H|D2⟩ = self.ham.element(...)
                             c_J = self.wfn.coeffs[j_sel]
                             for rs, ss in excited_pairs:
-                                # TODO this is wildly inefficient and I'll want to implement a JAX-friendly version at some point
+                               # TODO this is wildly inefficient and I'll want to implement a JAX-friendly version at some point
                                 if not tagmask[rs, ss]:
                                     continue
 
