@@ -245,7 +245,8 @@ class TestFCISystems:
         e_gs_computed = float(eigenvalues[0])
 
         # Davidson diagonalisation
-        solver = Diagonaliser(H_diag=jnp.diag(H), nstate=1)
+        tolerance = 1e-12
+        solver = Diagonaliser(H_diag=jnp.diag(H), nstate=1, residual_tol=tolerance)
         evals_davidson, _ = solver.davidson(lambda v: H @ v)
         e0_davidson = float(evals_davidson[0])
 
@@ -254,7 +255,6 @@ class TestFCISystems:
         print(f"  Computed (Davidson):  {e0_davidson:.12f} a.u.")
         print(f"  Δ:         {abs(e_gs_computed - e_gs_ref):.2e} a.u.")
 
-        tolerance = 1e-12
         energy_diff = abs(e_gs_computed - e_gs_ref)
         assert energy_diff < tolerance, (
             f"Energy differs by {energy_diff:.2e} > {tolerance:.2e}"

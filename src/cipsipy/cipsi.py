@@ -193,7 +193,7 @@ class CIPSISolver:
 
     def _diagonalise_variational_space(self) -> Tuple[float, jnp.ndarray]:
         """Diagonalise current internal space and return (E_var, ground coeffs)."""
-        if len(self.wfn.coeffs) == 1:
+        if self.wfn.coeffs.shape[0] == 1:
             e0 = self.ham.element(
                 int(self.wfn.dets_alpha[0]),
                 int(self.wfn.dets_beta[0]),
@@ -349,6 +349,10 @@ class CIPSISolver:
                 stop_reason = "no external determinants in target spin sector"
                 break
 
+            # TODO performance: this set is rebuilt from the full variational
+            # space every CIPSI iteration. Maintain it incrementally alongside
+            # self.wfn when determinants are added to avoid the repeated O(N_det)
+            # rebuild during duplicate filtering.
             current = {
                 (int(da), int(db))
                 for da, db in zip(self.wfn.dets_alpha, self.wfn.dets_beta)

@@ -118,9 +118,9 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, diag_h, norb, h_co
     Recall (Hv)_i = ∑_j H_ij c_j
 
     Args:
-        coeffs: coefficients for
-        dets_alpha: Sequence of alpha-spin determinants (bitstring integers)
-        dets_beta: Sequence of beta-spin determinants (bitstring integers)
+        coeffs: coefficients c_i for the wavefunction |Ψ⟩=∑_i c_i|D_α⟩|D_β⟩
+        dets_alpha: Sequence of alpha-spin determinants |D_α⟩ (bitstring integers)
+        dets_beta: Sequence of beta-spin determinants |D_β⟩ (bitstring integers)
         diag_h: diagonal of the Hamiltonian
         norb: Number of spatial orbitals
         h_core: One-electron integrals [norb, norb]
@@ -154,7 +154,8 @@ def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, diag_h, norb, h_co
 
     # get alpha excitations and add to v_out
     for i, j in find_connected_internal_determinants_beta(s_db, s_da, A_array_beta):
-        h_ij = hamiltonian_element(s_db[i], s_da[i], s_db[j], s_da[j], norb, h_core, eri)
+        # h_ij = hamiltonian_element(s_db[i], s_da[i], s_db[j], s_da[j], norb, h_core, eri)
+        h_ij = hamiltonian_element(s_da[i], s_db[i], s_da[j], s_db[j], norb, h_core, eri)
         v_out = v_out.at[s_idx[i]].add(h_ij * s_c[j])
         v_out = v_out.at[s_idx[j]].add(h_ij * s_c[i])
     return v_out

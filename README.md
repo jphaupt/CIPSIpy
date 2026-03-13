@@ -41,6 +41,10 @@ See the examples directory for working examples:
 python examples/h2/run_h2.py
 ```
 
+## Todo List
+
+See `todo.md` for project goals, and todo lists separated by project "phases".
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details

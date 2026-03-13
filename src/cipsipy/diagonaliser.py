@@ -57,14 +57,19 @@ class Diagonaliser:
             Umat = Vmat @ Smat
             HUmat = Wmat @ Smat
             denom = self.H_diag[:, jnp.newaxis] - evals[jnp.newaxis, :]
-            residuals = (HUmat - Umat * evals[jnp.newaxis, :]) / denom
+            residuals = HUmat - Umat * evals[jnp.newaxis, :]
 
             rnorm = jnp.linalg.norm(residuals, axis=0)
 
             if jnp.all(rnorm < self.residual_tol):
                 return evals, Umat
 
-            Vmat = jnp.hstack((Vmat, residuals))
+            # Safe-guard for small denominators
+            eps = 1e-12
+            safe_denom = jnp.where(jnp.abs(denom) < eps, jnp.sign(denom) * eps, denom)
+            corrections = residuals / safe_denom
+
+            Vmat = jnp.hstack((Vmat, corrections))
 
         print("Exiting Davidson diagonalisation due to max iterations reached")
         print("Use resulting eigenvectors at your own peril. :)")
