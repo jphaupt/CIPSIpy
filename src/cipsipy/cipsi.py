@@ -330,6 +330,7 @@ class CIPSISolver:
 
         final_Evar_el: Optional[float] = None
         needs_rediag = False
+        stop_reason = "max_iterations reached"
 
         for iteration in range(max_iterations):
             # 1) Diagonalise the current variational subspace.
@@ -352,10 +353,12 @@ class CIPSISolver:
 
             # 3) Convergence/saturation checks.
             if abs(Ept2) <= pt2_tol:
+                stop_reason = f"E_PT2 converged (|E_PT2|={abs(Ept2):.3e} <= tol={pt2_tol:.3e})"
                 break
 
             selected = self._select_external_determinants(contribs, selection_fraction)
             if not selected:
+                stop_reason = "no external determinants selected"
                 break
             selected = [
                 (da, db)
@@ -363,6 +366,7 @@ class CIPSISolver:
                 if self._is_target_spin_sector(da, db)
             ]
             if not selected:
+                stop_reason = "no external determinants in target spin sector"
                 break
 
             current = {
@@ -371,14 +375,17 @@ class CIPSISolver:
             }
             additions = [det for det in selected if det not in current]
             if not additions:
+                stop_reason = "all selected determinants already in variational space"
                 break
 
             if max_dets is not None:
                 remaining = max_dets - len(self.wfn.coeffs)
                 if remaining <= 0:
+                    stop_reason = f"max_dets={max_dets} reached"
                     break
                 additions = additions[:remaining]
                 if not additions:
+                    stop_reason = f"max_dets={max_dets} reached"
                     break
 
             add_alpha = jnp.array([da for da, _ in additions], dtype=self.wfn.dets_alpha.dtype)
@@ -399,7 +406,10 @@ class CIPSISolver:
                 self.wfn = self.wfn.with_coeffs(coeffs)
                 final_Evar_el = Evar_el
                 needs_rediag = False
+                stop_reason = f"max_dets={max_dets} reached"
                 break
+
+        print(f"CIPSI converged: {stop_reason}")
 
         if final_Evar_el is None or needs_rediag:
             Evar_el, coeffs = self._diagonalise_variational_space()
