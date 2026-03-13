@@ -291,7 +291,7 @@ class TestCIPSIAgainstFCI:
 
         Only run on tiny 2-orbital systems (H2, HeH+) where the unoptimised
         pure-Python selection loop terminates in reasonable time.  See
-        PERFORMANCE_REPORT.md for the roadmap to support larger systems.
+        PERFORMANCE_PLAN.md for the roadmap to support larger systems.
         """
         name = cipsi_correctness_system_data["name"]
         e_gs_ref = cipsi_correctness_system_data["e_gs_ref"]
