@@ -66,6 +66,12 @@ class CIPSISolver:
         # TODO always make sure determinants/coeffs are sorted s.t. c_I^2 >= C_{I+1}^2
         #   sort at the start of every cipsi iteration?
 
+    def _is_target_spin_sector(self, det_alpha: int, det_beta: int) -> bool:
+        """Return True if determinant matches the target (n_alpha, n_beta)."""
+        return (int(det_alpha).bit_count() == self.nelec[0]) and (
+            int(det_beta).bit_count() == self.nelec[1]
+        )
+
     def run_unfiltered_selection(self, Evar):
         # TODO move all the heavy calculations outside this class so it can be JIT'd
         # loop over generators G
@@ -153,6 +159,8 @@ class CIPSISolver:
                                     G_pq_rs,
                                     self.ham.norb,
                                 )
+                                if not self._is_target_spin_sector(G_pq_rs_alpha, G_pq_rs_beta):
+                                    continue
 
                                 h_elem = self.ham.element(
                                     Sdet_alpha,
@@ -178,6 +186,8 @@ class CIPSISolver:
                                 det_external_spinorb,
                                 self.ham.norb,
                             )
+                            if not self._is_target_spin_sector(det_alpha, det_beta):
+                                continue
                             # TODO optimise this with a determinant->diagonal lookup table and
                             # memoisation once the algorithm is validated end-to-end with
                             # integration/system tests against FCI references. For now we keep
@@ -319,12 +329,14 @@ class CIPSISolver:
             raise ValueError("selection_fraction must be in (0, 1]")
 
         final_Evar_el: Optional[float] = None
+        needs_rediag = False
 
         for iteration in range(max_iterations):
             # 1) Diagonalise the current variational subspace.
             Evar_el, coeffs = self._diagonalise_variational_space()
             self.wfn = self.wfn.with_coeffs(coeffs)
             final_Evar_el = Evar_el
+            needs_rediag = False
 
             # 2) Compute unfiltered external PT2 contributions.
             da_ext, db_ext, epsilon_ext = self.run_unfiltered_selection(Evar_el)
@@ -343,6 +355,13 @@ class CIPSISolver:
                 break
 
             selected = self._select_external_determinants(contribs, selection_fraction)
+            if not selected:
+                break
+            selected = [
+                (da, db)
+                for da, db in selected
+                if self._is_target_spin_sector(da, db)
+            ]
             if not selected:
                 break
 
@@ -372,15 +391,17 @@ class CIPSISolver:
                 dets_beta=jnp.concatenate((self.wfn.dets_beta, add_beta)),
                 norb=self.wfn.norb,
             )
+            needs_rediag = True
 
             if max_dets is not None and len(self.wfn.coeffs) >= max_dets:
                 # Re-diagonalise once on the final truncated space before returning.
                 Evar_el, coeffs = self._diagonalise_variational_space()
                 self.wfn = self.wfn.with_coeffs(coeffs)
                 final_Evar_el = Evar_el
+                needs_rediag = False
                 break
 
-        if final_Evar_el is None:
+        if final_Evar_el is None or needs_rediag:
             Evar_el, coeffs = self._diagonalise_variational_space()
             self.wfn = self.wfn.with_coeffs(coeffs)
             final_Evar_el = Evar_el
