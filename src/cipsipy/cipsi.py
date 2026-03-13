@@ -58,13 +58,7 @@ class CIPSISolver:
         self.ham = Hamiltonian(norb, h_core, eri, e_nuc)
 
         self.n_g = n_g
-        self.N_gen = 1 # number of generators
         self.n_s = n_s
-        self.N_sel = 1 # number of selectors
-        # N_det = len(self.wfn.coeffs)
-
-        # TODO always make sure determinants/coeffs are sorted s.t. c_I^2 >= C_{I+1}^2
-        #   sort at the start of every cipsi iteration?
 
     def _is_target_spin_sector(self, det_alpha: int, det_beta: int) -> bool:
         """Return True if determinant matches the target (n_alpha, n_beta)."""
@@ -74,14 +68,9 @@ class CIPSISolver:
 
     def run_unfiltered_selection(self, Evar):
         # TODO move all the heavy calculations outside this class so it can be JIT'd
-        # loop over generators G
-        # loop over batch (nonzero doubly-ionised generator G_pq)
-        # Init tagging/mask array and Pmat
-        # EPV and single-excit tagging
-        # loop over selectors
-        # more tagging
-        # calculate e_α for untagged |α⟩=|G_pq^rs⟩
         # Evar is the current iteration's variational energy
+        # FIXME there is probably a more intelligent way to go about this,
+        # otherwise we would not be using radix sort elsewhere (see thesis sec 4.2)
         self.wfn, _ = self.wfn.coeff_sorted()
         N_gen, N_sel = get_det_subset_size(self.wfn.coeffs, self.n_g, self.n_s)
 
@@ -90,26 +79,19 @@ class CIPSISolver:
         det_beta_gen = self.wfn.dets_beta[:N_gen]
         det_alpha_sel = self.wfn.dets_alpha[:N_sel]
         det_beta_sel = self.wfn.dets_beta[:N_sel]
-        # also for beta, coeffs
-        # also for selectors
 
         dets_ext_alpha = []
         dets_ext_beta  = []
         epsilon_ext = []
         # TODO instead of looping over spinorbitals, loop over spatorbs for each spin case (aa, bb,ab)
         #   this should be more efficient and you only need to store NxN for Pmat instead of (2N)x(2N)
-        # TODO or maybe not? See algorithm 14 of thesis
-        # loop generators
-        # first loop over spin orbitals
+        #   Even better: use JAX vectorisation wherever possible
         for ps in range(2*self.ham.norb):
             for qs in range(ps+1, 2*self.ham.norb):
                 for i_gen in range(N_gen):
                     Gdet_alpha = det_alpha_gen[i_gen]
                     Gdet_beta  = det_beta_gen[i_gen]
                     Gdet = spatorb2spinorb_det(Gdet_alpha, Gdet_beta, self.ham.norb)
-                    # same for beta
-                    # coeff
-                    # make sure p and q are occupied before applying a_p a_q.
                     # We cannot use annihilate's 0 sentinel here because a valid
                     # doubly-ionised determinant can also be represented by 0.
                     if (not is_orbital_occupied(Gdet, ps)) or (not is_orbital_occupied(Gdet, qs)):
@@ -128,8 +110,6 @@ class CIPSISolver:
                         if r_s_pair is not None:
                             tagmask = tagmask.at[r_s_pair[0], r_s_pair[1]].set(False)
                             tagmask = tagmask.at[r_s_pair[1], r_s_pair[0]].set(False)
-                        # TODO use get_creation_pairs for next step
-                        # note: i'm at step 8
                         # get excited pairs rs, ss s.t. G_pq^rs connects to Sdet
                         excited_pairs = get_creation_pairs(G_pq, Sdet, self.ham.norb)
                         if j_sel < i_gen:
