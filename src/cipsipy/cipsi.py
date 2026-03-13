@@ -283,8 +283,8 @@ class CIPSISolver:
                 break
         return selected
 
-    def _print_final_cipsi_summary(self, Evar_el: float) -> float:
-        """Print final determinant/energy summary and return E_var + E_PT2."""
+    def _print_final_cipsi_summary(self, Evar_el: float) -> Tuple[float, float]:
+        """Print final determinant/energy summary and return (E_var, E_est)."""
         da_ext, db_ext, epsilon_ext = self.run_unfiltered_selection(Evar_el)
         contribs = self._aggregate_external_contributions(da_ext, db_ext, epsilon_ext)
 
@@ -311,7 +311,7 @@ class CIPSISolver:
         print(f"E_var(final):  {E_var: .12f} a.u.")
         print(f"E_PT2(final):  {E_pt2: .12e} a.u.")
         print(f"E_est(final):  {E_est: .12f} a.u.")
-        return E_est
+        return E_var, E_est
 
     def run_cipsi(
         self,
@@ -416,8 +416,8 @@ class CIPSISolver:
             self.wfn = self.wfn.with_coeffs(coeffs)
             final_Evar_el = Evar_el
 
-        self._print_final_cipsi_summary(final_Evar_el)
-        return final_Evar_el + self.ham.e_nuc
+        E_var_final, E_est_final = self._print_final_cipsi_summary(final_Evar_el)
+        return E_var_final, E_est_final
 
 # full algorithm:
 # 1. we have internal dets D_I^(n), diagonalise this subspace for H to get E_var^(n) and coeffs for Ψ^(n)

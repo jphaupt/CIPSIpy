@@ -297,7 +297,8 @@ class TestCIPSIAgainstFCI:
         e_gs_ref = cipsi_correctness_system_data["e_gs_ref"]
         solver = CIPSISolver(fcidump_filename=cipsi_correctness_system_data["fcidump_path"])
 
-        e_gs_cipsi = float(solver.run_cipsi())
+        e_var, _ = solver.run_cipsi()
+        e_gs_cipsi = float(e_var)
 
         print(f"\n{'='*70}")
         print(f"CIPSI vs FCI: {name}")
@@ -326,7 +327,8 @@ class TestCIPSIAgainstFCI:
             int(solver.wfn.dets_beta[0]),
         )) + solver.ham.e_nuc
 
-        e_cipsi = float(solver.run_cipsi(max_dets=5))
+        e_var, _ = solver.run_cipsi(max_dets=5)
+        e_cipsi = float(e_var)
 
         print(f"\n{'='*70}")
         print(f"CIPSI smoke ({name}, max_dets=5)")
