@@ -50,6 +50,48 @@ Asymptotic cost is roughly:
 
 with substantial constant factors from Python control flow.
 
+## Why LiH 6-31G* Feels "Stuck" Before Iter 1
+
+The apparent stall is expected with the current implementation: the expensive
+selection work happens between iteration prints.
+
+`run_cipsi` prints once per completed macro-iteration. In each iteration, the
+print occurs after:
+1. diagonalization
+2. full call to `run_unfiltered_selection`
+3. PT2 aggregation
+
+So if selection is slow, there is no intermediate progress output.
+
+For LiH/6-31gstar in this repo:
+- `norb = 15` spatial orbitals
+- spin-orbital count is `2*norb = 30`
+- annihilation pair count is `C(30, 2) = 435`
+- inner `(r, s)` pair count is also `C(30, 2) = 435`
+
+Compared with H3+/3-21g (`norb=6`, `2*norb=12`, `C(12,2)=66`), the pair-space
+blowup is:
+- `435 / 66 ~= 6.6x` larger in outer `(p,q)` batches
+- another `6.6x` in inner `(r,s)` sweeps
+- roughly `~44x` more pair-combinations even before considering larger
+    `N_gen`/`N_sel` and Python overhead
+
+Practical consequence for one macro-iteration:
+- H3+ may finish quickly enough to print every few seconds
+- LiH spends most wall time inside the nested Python loops in
+    `run_unfiltered_selection` before the next `iter=...` line appears
+
+Important: this is not primarily Davidson cost. In early iterations, Davidson
+works on a tiny variational space and is cheap relative to selection.
+
+The dominant costs are:
+- repeated Python loops over `(p,q,i_gen,j_sel,r,s)`
+- repeated scalar `ham.element(...)` evaluations
+- many `jnp.ndarray.at[...]` updates in eager mode (functional array copies)
+
+This is why LiH can look like it is "hanging" even though it is still making
+progress.
+
 ## Explicit Bottlenecks with Real Code Examples
 
 ### 1. Repeated JAX `.at[...]` inside Python loops

@@ -40,14 +40,6 @@ def main() -> None:
     e_est = e_var + e_pt2
 
     print("=" * 72)
-    print("CIPSI Example: H2 / STO-3G")
-    print("=" * 72)
-    print(f"FCIDUMP:         {fcidump_path}")
-    print(f"N_det(final):    {len(solver.wfn.coeffs)}")
-    print(f"E_var(final):    {e_var: .12f} a.u.")
-    print(f"E_PT2(final):    {e_pt2: .12e} a.u.")
-    print(f"E_est(final):    {e_est: .12f} a.u.")
-    print(f"E_CIPSI(return): {e_cipsi: .12f} a.u.")
     print(f"E_FCI(ref):      {e_ref: .12f} a.u.")
     print(f"|Delta|:         {abs(e_cipsi - e_ref): .3e} a.u.")
 
