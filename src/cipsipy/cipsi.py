@@ -243,15 +243,31 @@ class CIPSISolver:
         self,
         contribs: Dict[Tuple[int, int], float],
         selection_fraction: float,
-    ) -> List[Tuple[int, int]]:
-        """Select determinants that recover a target fraction of |PT2| weight."""
+    ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
+        """Select truly external determinants and return their filtered PT2 map."""
         if not contribs:
-            return []
+            return [], {}
 
-        items = sorted(contribs.items(), key=lambda kv: abs(kv[1]), reverse=True)
+        # TODO performance: this set is rebuilt from the full variational
+        # space every CIPSI iteration. Maintain it incrementally alongside
+        # self.wfn when determinants are added to avoid the repeated O(N_det)
+        # rebuild during duplicate filtering.
+        current = {
+            (int(da), int(db))
+            for da, db in zip(self.wfn.dets_alpha, self.wfn.dets_beta)
+        }
+        external_contribs = {
+            (int(da), int(db)): float(eps)
+            for (da, db), eps in contribs.items()
+            if (int(da), int(db)) not in current
+        }
+        if not external_contribs:
+            return [], {}
+
+        items = sorted(external_contribs.items(), key=lambda kv: abs(kv[1]), reverse=True)
         total_abs = sum(abs(eps) for _, eps in items)
         if jnp.isclose(total_abs, 0.0):
-            return []
+            return [], external_contribs
 
         target = selection_fraction * total_abs
         cumulative = 0.0
@@ -261,15 +277,16 @@ class CIPSISolver:
             cumulative += abs(eps)
             if cumulative >= target:
                 break
-        return selected
+        return selected, external_contribs
 
     def _print_final_cipsi_summary(self, Evar_el: float) -> Tuple[float, float]:
         """Print final determinant/energy summary and return (E_var, E_est)."""
         da_ext, db_ext, epsilon_ext = self.run_unfiltered_selection(Evar_el)
         contribs = self._aggregate_external_contributions(da_ext, db_ext, epsilon_ext)
+        _, external_contribs = self._select_external_determinants(contribs, selection_fraction=1.0)
 
         E_var = Evar_el + self.ham.e_nuc
-        E_pt2 = float(sum(contribs.values()))
+        E_pt2 = float(sum(external_contribs.values()))
         E_est = E_var + E_pt2
 
         wfn_sorted, _ = self.wfn.coeff_sorted()
@@ -322,7 +339,11 @@ class CIPSISolver:
             # 2) Compute unfiltered external PT2 contributions.
             da_ext, db_ext, epsilon_ext = self.run_unfiltered_selection(Evar_el)
             contribs = self._aggregate_external_contributions(da_ext, db_ext, epsilon_ext)
-            Ept2 = float(sum(contribs.values()))
+            selected, external_contribs = self._select_external_determinants(
+                contribs,
+                selection_fraction,
+            )
+            Ept2 = float(sum(external_contribs.values()))
             Evar = Evar_el + self.ham.e_nuc
             Efci_est = Evar + Ept2
 
@@ -336,7 +357,6 @@ class CIPSISolver:
                 stop_reason = f"E_PT2 converged (|E_PT2|={abs(Ept2):.3e} <= tol={pt2_tol:.3e})"
                 break
 
-            selected = self._select_external_determinants(contribs, selection_fraction)
             if not selected:
                 stop_reason = "no external determinants selected"
                 break
@@ -349,32 +369,20 @@ class CIPSISolver:
                 stop_reason = "no external determinants in target spin sector"
                 break
 
-            # TODO performance: this set is rebuilt from the full variational
-            # space every CIPSI iteration. Maintain it incrementally alongside
-            # self.wfn when determinants are added to avoid the repeated O(N_det)
-            # rebuild during duplicate filtering.
-            current = {
-                (int(da), int(db))
-                for da, db in zip(self.wfn.dets_alpha, self.wfn.dets_beta)
-            }
-            additions = [det for det in selected if det not in current]
-            if not additions:
-                stop_reason = "all selected determinants already in variational space"
-                break
 
             if max_dets is not None:
                 remaining = max_dets - len(self.wfn.coeffs)
                 if remaining <= 0:
                     stop_reason = f"max_dets={max_dets} reached"
                     break
-                additions = additions[:remaining]
-                if not additions:
+                selected = selected[:remaining]
+                if not selected:
                     stop_reason = f"max_dets={max_dets} reached"
                     break
 
-            add_alpha = jnp.array([da for da, _ in additions], dtype=self.wfn.dets_alpha.dtype)
-            add_beta = jnp.array([db for _, db in additions], dtype=self.wfn.dets_beta.dtype)
-            zeros = jnp.zeros((len(additions),), dtype=self.wfn.coeffs.dtype)
+            add_alpha = jnp.array([da for da, _ in selected], dtype=self.wfn.dets_alpha.dtype)
+            add_beta = jnp.array([db for _, db in selected], dtype=self.wfn.dets_beta.dtype)
+            zeros = jnp.zeros((len(selected),), dtype=self.wfn.coeffs.dtype)
 
             self.wfn = Wavefunction(
                 coeffs=jnp.concatenate((self.wfn.coeffs, zeros)),

@@ -297,19 +297,20 @@ class TestCIPSIAgainstFCI:
         e_gs_ref = cipsi_correctness_system_data["e_gs_ref"]
         solver = CIPSISolver(fcidump_filename=cipsi_correctness_system_data["fcidump_path"])
 
-        e_var, _ = solver.run_cipsi()
-        e_gs_cipsi = float(e_var)
+        e_var, e_est = solver.run_cipsi()
+        e_gs_cipsi = float(e_est)
 
         print(f"\n{'='*70}")
         print(f"CIPSI vs FCI: {name}")
         print(f"{'='*70}")
         print(f"  FCI reference: {e_gs_ref:.12f} a.u.")
-        print(f"  CIPSI:         {e_gs_cipsi:.12f} a.u.")
+        print(f"  CIPSI E_var:   {float(e_var):.12f} a.u.")
+        print(f"  CIPSI E_est:   {e_gs_cipsi:.12f} a.u.")
         print(f"  Δ:             {abs(e_gs_cipsi - e_gs_ref):.2e} a.u.")
 
         tolerance = 1e-8
         assert abs(e_gs_cipsi - e_gs_ref) < tolerance, (
-            f"CIPSI energy differs from FCI by {abs(e_gs_cipsi - e_gs_ref):.2e} > {tolerance:.2e}"
+            f"CIPSI E_est differs from FCI by {abs(e_gs_cipsi - e_gs_ref):.2e} > {tolerance:.2e}"
         )
 
     def test_cipsi_smoke_larger_system(self, cipsi_smoke_system_data):
