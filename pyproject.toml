@@ -9,7 +9,7 @@ description = "A simple CIPSI (Configuration Interaction with Perturbative Selec
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "J. Philip Haupt"}
+    {name = "Jacobus Philip Haupt"}
 ]
 requires-python = ">=3.9"
 dependencies = [
@@ -34,6 +34,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "slow: computationally expensive tests excluded from default CI runs",
+]
 
 [tool.black]
 line-length = 100

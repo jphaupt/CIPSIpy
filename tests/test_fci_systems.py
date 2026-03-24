@@ -29,12 +29,22 @@ from cipsipy.cipsi import CIPSISolver
 # ============================================================================
 
 # List of systems to test. Comment out lines to skip specific systems.
-TEST_SYSTEMS = [
+FAST_SYSTEMS = [
     "H2/sto-3g",
     "HeH+/sto-3g",
     "H3+/3-21g",
     "Li/sto-3g",
-    "LiH/6-31gstar",
+]
+
+# systems whose tests take a little longer than desired (> 5 sec on my laptop),
+# to be excluded from CI/CD by default
+SLOW_SYSTEMS = ["LiH/6-31gstar"]
+
+TEST_SYSTEMS = FAST_SYSTEMS + SLOW_SYSTEMS
+
+SYSTEM_DATA_PARAMS = [
+    pytest.param(system, marks=pytest.mark.slow) if system in SLOW_SYSTEMS else system
+    for system in TEST_SYSTEMS
 ]
 
 # Systems small enough (norb=2, 4 FCI dets) for full CIPSI convergence tests.
@@ -108,7 +118,7 @@ def assets_dir():
     return test_dir.parent / "assets"
 
 
-@pytest.fixture(scope="module", params=TEST_SYSTEMS)
+@pytest.fixture(scope="module", params=SYSTEM_DATA_PARAMS)
 def system_data(request, assets_dir):
     """
     Load and cache all data for a test system.
