@@ -29,7 +29,7 @@ from cipsipy.cipsi import CIPSISolver
 # ============================================================================
 
 # List of systems to test. Comment out lines to skip specific systems.
-TEST_SYSTEMS = [
+FAST_SYSTEMS = [
     "H2/sto-3g",
     "HeH+/sto-3g",
     "H3+/3-21g",
@@ -40,7 +40,7 @@ TEST_SYSTEMS = [
 # to be excluded from CI/CD by default
 SLOW_SYSTEMS = ["LiH/6-31gstar"]
 
-TEST_SYSTEMS += SLOW_SYSTEMS
+TEST_SYSTEMS = FAST_SYSTEMS + SLOW_SYSTEMS
 
 SYSTEM_DATA_PARAMS = [
     pytest.param(system, marks=pytest.mark.slow) if system in SLOW_SYSTEMS else system
@@ -323,7 +323,6 @@ class TestCIPSIAgainstFCI:
             f"CIPSI E_est differs from FCI by {abs(e_gs_cipsi - e_gs_ref):.2e} > {tolerance:.2e}"
         )
 
-    @pytest.mark.slow
     def test_cipsi_smoke_larger_system(self, cipsi_smoke_system_data):
         """
         Smoke test: CIPSI runs without error on a medium system when capped at
