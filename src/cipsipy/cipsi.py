@@ -4,7 +4,7 @@ from cipsipy.diagonaliser import Diagonaliser
 from typing import Dict, Iterable, List, Optional, Tuple
 from cipsipy.fcidump import read_fcidump
 from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, \
-    get_creation_pair, get_creation_pairs, create, spinorb2spatorb_det
+    get_creation_pair, get_creation_pairs, create, spinorb2spatorb_det, get_occupied_indices
 import jax.numpy as jnp
 
 class CIPSISolver:
@@ -452,7 +452,7 @@ def apply_epv_and_single_tagging(
     # - p and q
     # rows_to_tag[i] = True  ->  row/col i is eligible (virtual, not ps/qs)
     # rows_to_tag[i] = False ->  row/col i is excluded (occupied or ps/qs)
-    occupied_mask = ((G_pq >> idx) & 1).astype(bool)
+    occupied_mask = get_occupied_indices(G_pq, n).astype(bool)
     rows_to_tag = ~occupied_mask
     rows_to_tag = rows_to_tag.at[ps].set(False)
     rows_to_tag = rows_to_tag.at[qs].set(False)
@@ -473,13 +473,11 @@ def apply_epv_and_single_tagging(
             alpha_ann = qs
             beta_ann = ps
 
-        alpha_so_idx = jnp.arange(norb)
-        alpha_occ = (Gdet >> alpha_so_idx) & 1
+        alpha_occ = get_occupied_indices(Gdet, norb)
         has_alpha = bool(jnp.any(alpha_occ > 0))
         lowest_occ_alpha = int(jnp.argmax(alpha_occ)) if has_alpha else None
 
-        beta_so_idx = jnp.arange(norb, n)
-        beta_occ = (Gdet >> beta_so_idx) & 1
+        beta_occ = get_occupied_indices(Gdet, n)[norb:]
         has_beta = bool(jnp.any(beta_occ > 0))
         lowest_occ_beta = int(jnp.argmax(beta_occ) + norb) if has_beta else None
 
@@ -487,7 +485,7 @@ def apply_epv_and_single_tagging(
         # beta orbital to the chosen lowest occupied beta in |G>.
         if (lowest_occ_beta is not None) and (beta_ann == lowest_occ_beta):
             s_range = jnp.arange(norb)
-            occ_gpq_alpha = ((G_pq >> s_range) & 1).astype(bool)
+            occ_gpq_alpha = get_occupied_indices(G_pq, norb).astype(bool)
             valid_s = (s_range != alpha_ann) & ~occ_gpq_alpha
             Bmat = Bmat.at[beta_ann, s_range].set(
                 jnp.where(valid_s, True, Bmat[beta_ann, s_range])
@@ -500,7 +498,7 @@ def apply_epv_and_single_tagging(
         # alpha orbital to the chosen lowest occupied alpha in |G>.
         if (lowest_occ_alpha is not None) and (alpha_ann == lowest_occ_alpha):
             r_range = jnp.arange(norb, n)
-            occ_gpq_beta = ((G_pq >> r_range) & 1).astype(bool)
+            occ_gpq_beta = get_occupied_indices(G_pq, n)[norb:].astype(bool)
             valid_r = (r_range != beta_ann) & ~occ_gpq_beta
             Bmat = Bmat.at[alpha_ann, r_range].set(
                 jnp.where(valid_r, True, Bmat[alpha_ann, r_range])
