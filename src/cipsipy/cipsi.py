@@ -440,25 +440,26 @@ def apply_epv_and_single_tagging(
     """
     is_p_alpha = ps < norb
     is_q_alpha = qs < norb
+    n = 2 * norb
+    idx = jnp.arange(n)
+
     # initialise entirely untagged (True)
-    Bmat = jnp.ones((2*norb, 2*norb), dtype=bool)
+    Bmat = jnp.ones((n, n), dtype=bool)
+
     # to tag:
     # - diagonal of G_pq
     # - occupied in G_pq
     # - p and q
-    rows_to_tag = jnp.ones((2*norb,), dtype=bool)
-    for rs in range(2*norb):
-        if is_orbital_occupied(G_pq, rs):
-            rows_to_tag = rows_to_tag.at[rs].set(False)
+    # rows_to_tag[i] = True  ->  row/col i is eligible (virtual, not ps/qs)
+    # rows_to_tag[i] = False ->  row/col i is excluded (occupied or ps/qs)
+    occupied_mask = ((G_pq >> idx) & 1).astype(bool)
+    rows_to_tag = ~occupied_mask
     rows_to_tag = rows_to_tag.at[ps].set(False)
     rows_to_tag = rows_to_tag.at[qs].set(False)
 
-    # Apply base tagging.
-    for i in range(2*norb):
-        Bmat = Bmat.at[i, i].set(False)
-        if not rows_to_tag[i]:
-            Bmat = Bmat.at[i, :].set(False)
-            Bmat = Bmat.at[:, i].set(False)
+    # Apply base tagging: zero diagonal, then mask tagged rows/columns.
+    Bmat = Bmat.at[idx, idx].set(False)
+    Bmat = Bmat & rows_to_tag[:, None] & rows_to_tag[None, :]
 
     # Single-excitation handling (Garniron 5.4.3):
     # Singles are formally present in G_pq^rs when one created orbital restores
@@ -472,38 +473,40 @@ def apply_epv_and_single_tagging(
             alpha_ann = qs
             beta_ann = ps
 
-        lowest_occ_alpha = None
-        for rs in range(norb):
-            if is_orbital_occupied(Gdet, rs):
-                lowest_occ_alpha = rs
-                break
+        alpha_so_idx = jnp.arange(norb)
+        alpha_occ = (Gdet >> alpha_so_idx) & 1
+        has_alpha = bool(jnp.any(alpha_occ > 0))
+        lowest_occ_alpha = int(jnp.argmax(alpha_occ)) if has_alpha else None
 
-        lowest_occ_beta = None
-        for rs in range(norb, 2*norb):
-            if is_orbital_occupied(Gdet, rs):
-                lowest_occ_beta = rs
-                break
+        beta_so_idx = jnp.arange(norb, n)
+        beta_occ = (Gdet >> beta_so_idx) & 1
+        has_beta = bool(jnp.any(beta_occ > 0))
+        lowest_occ_beta = int(jnp.argmax(beta_occ) + norb) if has_beta else None
 
         # Untag alpha-spin singles a -> s exactly once by fixing the created
         # beta orbital to the chosen lowest occupied beta in |G>.
         if (lowest_occ_beta is not None) and (beta_ann == lowest_occ_beta):
-            for s in range(norb):
-                if s == alpha_ann:
-                    continue
-                if is_orbital_occupied(G_pq, s):
-                    continue
-                Bmat = Bmat.at[beta_ann, s].set(True)
-                Bmat = Bmat.at[s, beta_ann].set(True)
+            s_range = jnp.arange(norb)
+            occ_gpq_alpha = ((G_pq >> s_range) & 1).astype(bool)
+            valid_s = (s_range != alpha_ann) & ~occ_gpq_alpha
+            Bmat = Bmat.at[beta_ann, s_range].set(
+                jnp.where(valid_s, True, Bmat[beta_ann, s_range])
+            )
+            Bmat = Bmat.at[s_range, beta_ann].set(
+                jnp.where(valid_s, True, Bmat[s_range, beta_ann])
+            )
 
         # Untag beta-spin singles b -> r exactly once by fixing the created
         # alpha orbital to the chosen lowest occupied alpha in |G>.
         if (lowest_occ_alpha is not None) and (alpha_ann == lowest_occ_alpha):
-            for r in range(norb, 2*norb):
-                if r == beta_ann:
-                    continue
-                if is_orbital_occupied(G_pq, r):
-                    continue
-                Bmat = Bmat.at[alpha_ann, r].set(True)
-                Bmat = Bmat.at[r, alpha_ann].set(True)
+            r_range = jnp.arange(norb, n)
+            occ_gpq_beta = ((G_pq >> r_range) & 1).astype(bool)
+            valid_r = (r_range != beta_ann) & ~occ_gpq_beta
+            Bmat = Bmat.at[alpha_ann, r_range].set(
+                jnp.where(valid_r, True, Bmat[alpha_ann, r_range])
+            )
+            Bmat = Bmat.at[r_range, alpha_ann].set(
+                jnp.where(valid_r, True, Bmat[r_range, alpha_ann])
+            )
 
     return Bmat

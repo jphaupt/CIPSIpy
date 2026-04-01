@@ -86,5 +86,5 @@ class Diagonaliser:
         if vectors.ndim == 1:
             return H_vec_prod(vectors)
 
-        cols = [H_vec_prod(vectors[:, i]) for i in range(vectors.shape[1])]
-        return jnp.column_stack(cols)
+        # vmap over the column dimension (in_axes=1, out_axes=1)
+        return jax.vmap(H_vec_prod, in_axes=1, out_axes=1)(vectors)

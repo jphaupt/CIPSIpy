@@ -17,6 +17,7 @@ Slater-Condon Rules:
 
 from dataclasses import dataclass
 
+import jax
 import jax.numpy as jnp
 
 from cipsipy.determinants import (
@@ -92,12 +93,10 @@ class Hamiltonian:
         )
 
 def get_hamiltonian_diagonal(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
-    h_diag = jnp.zeros_like(coeffs)
-    for i in range(len(h_diag)):
-        # TODO parallelise with vmap
-        h_ii = _diagonal_element(dets_alpha[i], dets_beta[i], norb, h_core, eri)
-        h_diag = h_diag.at[i].set(h_ii)
-    return h_diag
+    dets_alpha = jnp.asarray(dets_alpha)
+    dets_beta = jnp.asarray(dets_beta)
+    _diag_batched = jax.vmap(lambda da, db: _diagonal_element(da, db, norb, h_core, eri))
+    return _diag_batched(dets_alpha, dets_beta)
 
 def hamiltonian_vector_product(coeffs, dets_alpha, dets_beta, diag_h, norb, h_core, eri):
     """Build a Hamiltonian matrix-vector product
@@ -275,38 +274,31 @@ def _diagonal_element(det_alpha, det_beta, n_orb, h_core, eri):
             + Σ_{i_α,j_β} (ii|jj)
 
     Chemist's notation: (pq|rs) = eri[p,q,r,s]
-
-    TODO JAX optimisation
     """
     occ_alpha = get_occupied_indices(det_alpha, n_orb)
     occ_beta = get_occupied_indices(det_beta, n_orb)
-    alpha_indices = jnp.where(occ_alpha)[0]
-    beta_indices = jnp.where(occ_beta)[0]
+    occ_alpha_f = occ_alpha.astype(eri.dtype)
+    occ_beta_f = occ_beta.astype(eri.dtype)
 
-    energy = 0.0
-    energy += jnp.sum(h_core[alpha_indices, alpha_indices])
-    energy += jnp.sum(h_core[beta_indices, beta_indices])
+    # One-electron terms
+    h_diag = jnp.diag(h_core)
+    energy = jnp.dot(occ_alpha_f, h_diag) + jnp.dot(occ_beta_f, h_diag)
 
     # Alpha-alpha interactions (Coulomb - Exchange)
-    for i_idx in range(len(alpha_indices)):
-        i = alpha_indices[i_idx]
-        for j_idx in range(len(alpha_indices)):
-            j = alpha_indices[j_idx]
-            if i != j:
-                energy += 0.5 * (eri[i, i, j, j] - eri[i, j, j, i])
+    # einsum includes i=j terms, but those contribute zero: eri[i,i,i,i] - eri[i,i,i,i] = 0,
+    # so this is equivalent to the original sum_{i!=j} loop
+    J_aa = jnp.einsum('i,j,iijj->', occ_alpha_f, occ_alpha_f, eri)
+    K_aa = jnp.einsum('i,j,ijji->', occ_alpha_f, occ_alpha_f, eri)
+    energy += 0.5 * (J_aa - K_aa)
 
     # Beta-beta interactions (Coulomb - Exchange)
-    for i_idx in range(len(beta_indices)):
-        i = beta_indices[i_idx]
-        for j_idx in range(len(beta_indices)):
-            j = beta_indices[j_idx]
-            if i != j:
-                energy += 0.5 * (eri[i, i, j, j] - eri[i, j, j, i])
+    J_bb = jnp.einsum('i,j,iijj->', occ_beta_f, occ_beta_f, eri)
+    K_bb = jnp.einsum('i,j,ijji->', occ_beta_f, occ_beta_f, eri)
+    energy += 0.5 * (J_bb - K_bb)
 
     # Alpha-beta interactions (Coulomb only)
-    for i in alpha_indices:
-        for j in beta_indices:
-            energy += eri[i, i, j, j]
+    J_ab = jnp.einsum('i,j,iijj->', occ_alpha_f, occ_beta_f, eri)
+    energy += J_ab
 
     return energy
 
@@ -344,17 +336,18 @@ def _single_excitation_element(
     element = h_core[i, a]
 
     # Same spin interactions (Coulomb - Exchange)
+    # sum_{k != a} occ_same[k] * (eri[i,a,k,k] - eri[i,k,k,a])
+    # a is occupied in det_j (the post-excitation determinant) and must be excluded
+    # from the sum; we zero out the k=a mask entry rather than branching on k != a
     occ_same = get_occupied_indices(det_j, n_orb)
-    occ_same_indices = jnp.where(occ_same)[0]
-    for k in occ_same_indices:
-        if k != a:
-            element += eri[i, a, k, k] - eri[i, k, k, a]
+    occ_same_f = occ_same.astype(h_core.dtype)
+    occ_same_f = occ_same_f.at[a].set(0.0)  # exclude k = a
+    element += jnp.dot(occ_same_f, jnp.diag(eri[i, a]) - jnp.diag(eri[i, :, :, a]))
 
     # Opposite spin interactions (Coulomb only)
     occ_opp = get_occupied_indices(spectator_det, n_orb)
-    opp_indices = jnp.where(occ_opp)[0]
-    for k in opp_indices:
-        element += eri[i, a, k, k]
+    occ_opp_f = occ_opp.astype(h_core.dtype)
+    element += jnp.dot(occ_opp_f, jnp.diag(eri[i, a]))
 
     return phase * element
 
