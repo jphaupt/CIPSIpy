@@ -16,6 +16,7 @@ Slater-Condon Rules:
 """
 
 from dataclasses import dataclass
+from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -92,6 +93,7 @@ class Hamiltonian:
             self.eri,
         )
 
+@partial(jax.jit, static_argnums=(3,))
 def get_hamiltonian_diagonal(coeffs, dets_alpha, dets_beta, norb, h_core, eri):
     dets_alpha = jnp.asarray(dets_alpha)
     dets_beta = jnp.asarray(dets_beta)
@@ -265,6 +267,7 @@ def hamiltonian_element(det_i_alpha, det_i_beta, det_j_alpha, det_j_beta, n_orb,
         return 0.0
 
 
+@partial(jax.jit, static_argnums=(2,))
 def _diagonal_element(det_alpha, det_beta, n_orb, h_core, eri):
     """
     Diagonal element for spin-separated determinants.

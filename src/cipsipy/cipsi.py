@@ -458,6 +458,10 @@ def apply_epv_and_single_tagging(
     rows_to_tag = rows_to_tag.at[qs].set(False)
 
     # Apply base tagging: zero diagonal, then mask tagged rows/columns.
+    # rows_to_tag[:, None] broadcasts to shape (n, 1) and rows_to_tag[None, :]
+    # to (1, n); their AND gives the outer product mask where entry (r, s) is
+    # True only when *both* spin-orbital r and spin-orbital s are eligible
+    # (virtual in G_pq and neither of the annihilated spin-orbitals ps/qs).
     Bmat = Bmat.at[idx, idx].set(False)
     Bmat = Bmat & rows_to_tag[:, None] & rows_to_tag[None, :]
 
