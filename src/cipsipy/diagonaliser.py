@@ -48,45 +48,48 @@ class Diagonaliser:
                 ``H @ v`` of the same shape.
             initial_guess: unused (reserved for future use).
 
-        The subspace grows by at most ``nstate`` columns per macro-iteration.
-        At each iteration ``H_vec_prod`` is applied only to the *new* columns
-        (at most ``nstate``), so for expensive H the number of H applications
-        is O(nstate × n_iters) rather than O(nstate × n_iters²) as in the
-        original growing-hstack approach.  The subspace is orthogonalised via a
-        single batched matrix projection (not an O(m) Python loop), then at most
-        ``nstate`` new columns are appended by concatenation (which only copies
-        the new data, unlike the padded-buffer scatter-update approach).  When
-        the subspace reaches ``max_subspace`` columns a *thick restart* resets
-        it to the ``n_keep = max_subspace - nstate`` best Ritz vectors.
+        The subspace is stored in two preallocated buffers of fixed shape
+        ``(dim, max_subspace)``.  At each macro-iteration only the *new*
+        correction vectors (at most ``nstate`` columns) are passed to
+        ``H_vec_prod``, so that callable sees at most two distinct input shapes
+        and is compiled at most twice by JAX rather than once per iteration as
+        with the original growing-hstack approach.  When the buffer is full a
+        *thick restart* resets the subspace to the current Ritz vectors,
+        keeping the buffers' shape constant throughout.
         """
         dim = self.H_diag.shape[0]
         nstate = self.nstate
         max_subspace = self.max_subspace
-        # On restart, keep as many Ritz vectors as the buffer allows minus the
-        # nstate slots needed for the next batch of corrections.
-        n_keep = max_subspace - nstate
-        eps = 1e-12
 
-        # Growing subspace: Vmat has shape (dim, m), starting from nstate columns.
-        # Using growing concatenation (not preallocated scatter) keeps each
-        # iteration's work proportional to the actual subspace size.
-        Vmat = jnp.eye(dim, nstate)
-        Wmat = self._apply_h_vec_prod(H_vec_prod, Vmat)
-        m = nstate  # current number of subspace columns
+        # Preallocated fixed-shape subspace buffers.  Their shape never changes,
+        # so the vmap'd H_vec_prod call sees only a small number of distinct
+        # shapes instead of a new shape on every iteration.
+        Vmat = jnp.zeros((dim, max_subspace))
+        Wmat = jnp.zeros((dim, max_subspace))
+
+        # Seed the first nstate columns with unit vectors (already orthonormal)
+        Vmat = Vmat.at[:, :nstate].set(jnp.eye(dim, nstate))
+        # Apply H to the initial columns
+        Wmat = Wmat.at[:, :nstate].set(
+            self._apply_h_vec_prod(H_vec_prod, Vmat[:, :nstate])
+        )
+        m = nstate  # number of active (filled) columns
 
         evals = jnp.zeros(nstate)
-        Umat = Vmat
+        Umat = Vmat[:, :nstate]
 
         for _ in range(self.max_macro_iterations):
-            # Subspace solve: Rayleigh–Ritz on the full active subspace
-            Tmat = Vmat.T @ Wmat                    # (m, m)
-            evals_full, Smat_full = jnp.linalg.eigh(Tmat)
-            evals = evals_full[:nstate]
-            Smat  = Smat_full[:, :nstate]
+            # Subspace solve on the m active columns only
+            V_m = Vmat[:, :m]
+            W_m = Wmat[:, :m]
+            Tmat = V_m.T @ W_m          # (m, m)
+            evals_m, Smat = jnp.linalg.eigh(Tmat)
+            evals = evals_m[:nstate]
+            Smat = Smat[:, :nstate]
 
-            # Ritz vectors and their H images
-            Umat  = Vmat @ Smat                     # (dim, nstate)
-            HUmat = Wmat @ Smat                     # (dim, nstate)
+            # Ritz vectors and projected H application
+            Umat  = V_m @ Smat          # (dim, nstate)
+            HUmat = W_m @ Smat          # (dim, nstate)
 
             denom     = self.H_diag[:, jnp.newaxis] - evals[jnp.newaxis, :]
             residuals = HUmat - Umat * evals[jnp.newaxis, :]
@@ -99,67 +102,66 @@ class Diagonaliser:
             # sign(0.0) == 0 in IEEE 754, so using sign(denom)*eps as the
             # fallback would leave a zero denominator.  Instead, zero out the
             # correction for any component where the denominator is negligible.
+            eps = 1e-12
             denom_is_small = jnp.abs(denom) < eps
             safe_denom  = jnp.where(denom_is_small, eps, denom)
             corrections = jnp.where(denom_is_small, 0.0, residuals / safe_denom)
 
-            # Thick restart: when the subspace reaches max_subspace columns,
-            # reset to the n_keep best Ritz vectors before adding corrections.
-            # Placed *after* the convergence check so the full subspace is
-            # always tested first.  Keeping n_keep = max_subspace - nstate
-            # vectors preserves more context than keeping only nstate.
+            # Thick restart: when the buffer is full, reset the subspace to the
+            # current Ritz vectors so the fixed-size buffers can be reused.
+            # The restart is placed *after* the convergence check so the full
+            # subspace is always tested before discarding any vectors.
             if m >= max_subspace:
-                Vmat = Vmat @ Smat_full[:, :n_keep]  # (dim, n_keep)
-                Wmat = Wmat @ Smat_full[:, :n_keep]  # (dim, n_keep)
-                m = n_keep
+                Vmat = Vmat.at[:, :nstate].set(Umat)
+                Wmat = Wmat.at[:, :nstate].set(HUmat)
+                Vmat = Vmat.at[:, nstate:].set(0.0)
+                Wmat = Wmat.at[:, nstate:].set(0.0)
+                m = nstate
 
-            # Orthogonalise all correction vectors against the current subspace
-            # in a single batched projection (two matrix multiplications).
-            # This replaces the original O(m) Python loop that dispatched one
-            # small JAX kernel per subspace column.
-            new_vecs = corrections - Vmat @ (Vmat.T @ corrections)
+            # Orthogonalise correction vectors against the current subspace
+            # (modified Gram-Schmidt) so they contribute genuinely new directions.
+            new_vecs = corrections
+            for k in range(m):
+                vk = Vmat[:, k:k + 1]
+                new_vecs = new_vecs - vk * (vk.T @ new_vecs)
 
-            # Append new column(s) via concatenation so each copy is
-            # proportional to the data added, not the full padded buffer.
-            # The outer loop runs at most nstate times (O(1) in practice).
-            # A brief mutual-MGS step guards against near-duplicate directions
-            # within the same batch (common when nstate > 1 and both DPR
-            # corrections lie in a one-dimensional orthogonal complement).
-            m_start = m  # index of the first new column in this batch
+            # Mutual MGS: orthogonalise the nstate correction columns against
+            # each other so they span independent directions.  When two or more
+            # DPR corrections point in the same direction (common when nstate>1
+            # and the residuals all lie in a single orthogonal complement
+            # direction), later columns become near-zero after this step and
+            # must be discarded rather than added as rank-deficient columns.
+            # NOTE: the `if nj > eps` checks below use concrete JAX scalar
+            # comparisons (valid in eager / interpreted mode).  davidson() is
+            # intentionally not jax.jit-compiled itself; the performance gain
+            # comes from H_vec_prod always seeing a fixed input shape.
+            for j in range(nstate - 1):
+                nj = jnp.linalg.norm(new_vecs[:, j])
+                if nj > eps:
+                    vj = new_vecs[:, j:j + 1] / nj
+                    new_vecs = new_vecs.at[:, j + 1:].set(
+                        new_vecs[:, j + 1:] - vj * (vj.T @ new_vecs[:, j + 1:])
+                    )
+
+            # Append only columns with sufficient norm; skip near-zero ones to
+            # avoid introducing rank-deficient columns into the subspace.
+            m_new = m
             for j in range(nstate):
-                if m >= max_subspace:
+                if m_new >= max_subspace:
                     break
-                col = new_vecs[:, j]
-                # Mutual MGS: project out columns added earlier in this batch
-                # (at most nstate-1 steps, so always O(1))
-                for k_idx in range(m_start, m):
-                    c_k = Vmat[:, k_idx]
-                    col = col - c_k * (c_k @ col)
-                nj = jnp.linalg.norm(col)
-                # For j=0, always add (residuals are non-zero → corrections are
-                # non-trivially orthogonal to V_m when not converged).
-                # Normalise via jnp.where to avoid a forced Python–JAX sync in
-                # the common nstate=1 case; the `and` short-circuit prevents
-                # JAX scalar materialisation for j=0.
-                # For j>0, a near-zero column means it is parallel to an earlier
-                # correction; skip it to prevent a rank-deficient subspace.
-                if j > 0 and nj <= eps:
-                    continue
-                normed = col / jnp.where(nj > eps, nj, 1.0)
-                Vmat = jnp.column_stack([Vmat, normed])
-                m += 1
+                nj = jnp.linalg.norm(new_vecs[:, j])
+                if nj > eps:
+                    Vmat = Vmat.at[:, m_new].set(new_vecs[:, j] / nj)
+                    m_new += 1
 
-            # Apply H only to the newly appended columns.  This slice always has
-            # at most nstate columns and in the common nstate=1 case has exactly
-            # one column, so H_vec_prod sees at most two distinct input shapes
-            # (one for the initial seed, one for all subsequent corrections) and
-            # is compiled at most twice rather than once per iteration.
-            n_add = m - m_start
-            if n_add > 0:
-                Wmat = jnp.column_stack([
-                    Wmat,
-                    self._apply_h_vec_prod(H_vec_prod, Vmat[:, m_start:m]),
-                ])
+            # Apply H only to the new columns.  The slice Vmat[:, m:m_new] has
+            # at most nstate columns, so H_vec_prod sees at most two distinct
+            # shapes across all iterations and is compiled at most twice.
+            if m_new > m:
+                Wmat = Wmat.at[:, m:m_new].set(
+                    self._apply_h_vec_prod(H_vec_prod, Vmat[:, m:m_new])
+                )
+            m = m_new
 
         print("Exiting Davidson diagonalisation due to max iterations reached")
         print("Use resulting eigenvectors at your own peril. :)")
