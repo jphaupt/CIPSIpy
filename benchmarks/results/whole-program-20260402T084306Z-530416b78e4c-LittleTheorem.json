@@ -1,0 +1,47 @@
+{
+  "run_started_at": "2026-04-02T08:41:53.369091+00:00",
+  "run_finished_at": "2026-04-02T08:43:06.200961+00:00",
+  "wall_time_seconds": 72.8318605759996,
+  "git": {
+    "branch": "copilot/optimize-jax-performance",
+    "commit": "530416b78e4c11f00307e732c0b04eecd7dfc9ce"
+  },
+  "host": {
+    "hostname": "LittleTheorem",
+    "platform": "Linux-6.17.0-19-generic-x86_64-with-glibc2.39",
+    "python_version": "3.11.14"
+  },
+  "command": "pytest benchmarks/test_cipsi_performance.py --benchmark-only --benchmark-min-rounds 6 --benchmark-disable-gc --benchmark-json /tmp/cipsipy-bench-json-915vdrbd/pytest-benchmark.json -m benchmark and not slow",
+  "benchmark": {
+    "benchmark_count": 2,
+    "mean_seconds": 3.924580118000449,
+    "median_seconds": 4.029987440000696,
+    "min_seconds": 1.1981096759991487,
+    "max_seconds": 7.715249503002269,
+    "rounds": 12,
+    "tests": [
+      {
+        "name": "test_cipsi_end_to_end[h3p_321g]",
+        "fullname": "benchmarks/test_cipsi_performance.py::test_cipsi_end_to_end[h3p_321g]",
+        "param": "h3p_321g",
+        "mean_seconds": 6.621354189999693,
+        "median_seconds": 6.832941541499167,
+        "min_seconds": 5.724227159997099,
+        "max_seconds": 7.715249503002269,
+        "stddev_seconds": 0.7681791305530238,
+        "rounds": 6
+      },
+      {
+        "name": "test_cipsi_end_to_end[li_sto3g]",
+        "fullname": "benchmarks/test_cipsi_performance.py::test_cipsi_end_to_end[li_sto3g]",
+        "param": "li_sto3g",
+        "mean_seconds": 1.2278060460012057,
+        "median_seconds": 1.227033338502224,
+        "min_seconds": 1.1981096759991487,
+        "max_seconds": 1.276059350995638,
+        "stddev_seconds": 0.028454677731342738,
+        "rounds": 6
+      }
+    ]
+  }
+}
