@@ -115,4 +115,31 @@ def test_davidson_with_sparse_qc_matvec():
     expected = jnp.linalg.eigvalsh(H)[0]
     assert jnp.allclose(energies[0], expected, atol=1e-8)
 
+
+def test_davidson_thick_restart():
+    """Converges correctly when thick restarts are forced via a small max_subspace."""
+    h_diag = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    H = jnp.diag(h_diag) + 0.1 * jnp.array(
+        [
+            [0, 1, 0, 0, 0],
+            [1, 0, 1, 0, 0],
+            [0, 1, 0, 1, 0],
+            [0, 0, 1, 0, 1],
+            [0, 0, 0, 1, 0],
+        ],
+        dtype=jnp.float64,
+    )
+
+    expected = jnp.linalg.eigvalsh(H)[0]
+
+    # Force multiple restarts: max_subspace=4 means a restart every 4 vectors
+    solver = Diagonaliser(
+        H_diag=h_diag, nstate=1, residual_tol=1e-8,
+        max_macro_iterations=100, max_subspace=4,
+    )
+    mock_hvp = lambda c: jnp.dot(H, c)
+    energy, _ = solver.davidson(mock_hvp)
+
+    assert jnp.allclose(energy[0], expected, atol=1e-8)
+
 # TODO tests for excited states
