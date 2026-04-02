@@ -12,8 +12,19 @@ import sys
 # For development: add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
-from cipsipy.cipsi import CIPSISolver
+import jax
 
+
+def pick_device(gpu_id=0):
+    try:
+        device = jax.devices("gpu")[gpu_id]
+    except (RuntimeError, IndexError):
+        device = jax.devices("cpu")[0]
+
+    print(f"JAX backend: {jax.default_backend()}")
+    print(f"JAX devices: {jax.devices()}")
+    print(f"Selected device: {device}")
+    return device
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -24,11 +35,15 @@ def main() -> None:
     fcidump_path = root / "assets" / "H2" / "sto-3g" / "FCIDUMP"
     ref_path = root / "assets" / "H2" / "sto-3g" / "e_gs.txt"
 
+    device = pick_device(gpu_id=0)
+
     with open(ref_path, "r", encoding="utf-8") as f:
         e_ref = float(f.read().strip())
 
-    solver = CIPSISolver(fcidump_filename=str(fcidump_path))
-    e_var, e_est = solver.run_cipsi()
+    with jax.default_device(device):
+        from cipsipy.cipsi import CIPSISolver
+        solver = CIPSISolver(fcidump_filename=str(fcidump_path))
+        e_var, e_est = solver.run_cipsi()
 
     print("=" * 72)
     print(f"E_var(return):   {float(e_var): .12f} a.u.")
