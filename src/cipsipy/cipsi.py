@@ -1,10 +1,23 @@
 from cipsipy.determinants import Wavefunction, clear_orbital_bit, get_det_subset_size
-from cipsipy.hamiltonian import Hamiltonian, hamiltonian_vector_product
+from cipsipy.hamiltonian import (
+    Hamiltonian,
+    hamiltonian_vector_product,
+    precompute_h_vals,
+    scatter_add_matvec,
+)
 from cipsipy.diagonaliser import Diagonaliser
 from typing import Dict, Iterable, List, Optional, Tuple
 from cipsipy.fcidump import read_fcidump
-from cipsipy.determinants import is_orbital_occupied, spatorb2spinorb_det, \
-    get_creation_pair, get_creation_pairs, create, spinorb2spatorb_det, get_occupied_indices
+from cipsipy.determinants import (
+    is_orbital_occupied,
+    spatorb2spinorb_det,
+    get_creation_pair,
+    get_creation_pairs,
+    create,
+    spinorb2spatorb_det,
+    get_occupied_indices,
+    precompute_connections,
+)
 import jax.numpy as jnp
 
 class CIPSISolver:
@@ -207,17 +220,20 @@ class CIPSISolver:
             self.wfn.dets_alpha,
             self.wfn.dets_beta,
         )
+
+        # Precompute connected pairs and their H_ij values once; reuse for every
+        # Davidson matvec call (typically ~14 calls per diagonalisation).
+        row_idx, col_idx = precompute_connections(
+            self.wfn.dets_alpha, self.wfn.dets_beta, self.ham.norb
+        )
+        h_vals = precompute_h_vals(
+            self.wfn.dets_alpha, self.wfn.dets_beta, row_idx, col_idx,
+            self.ham.norb, self.ham.h_core, self.ham.eri,
+        )
+
         diag = Diagonaliser(H_diag=h_diag, nstate=1)
         evals, vecs = diag.davidson(
-            lambda v: hamiltonian_vector_product(
-                v,
-                self.wfn.dets_alpha,
-                self.wfn.dets_beta,
-                h_diag,
-                self.ham.norb,
-                self.ham.h_core,
-                self.ham.eri,
-            )
+            lambda v: scatter_add_matvec(v, h_diag, h_vals, row_idx, col_idx)
         )
         e_var = float(evals[0])
         coeffs = vecs[:, 0]

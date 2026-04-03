@@ -118,12 +118,12 @@ class Diagonaliser:
                 Wmat = Wmat.at[:, nstate:].set(0.0)
                 m = nstate
 
-            # Orthogonalise correction vectors against the current subspace
-            # (modified Gram-Schmidt) so they contribute genuinely new directions.
-            new_vecs = corrections
-            for k in range(m):
-                vk = Vmat[:, k:k + 1]
-                new_vecs = new_vecs - vk * (vk.T @ new_vecs)
+            # Orthogonalise correction vectors against the current subspace in
+            # one batched projection.  Because V_m has orthonormal columns,
+            # the single-pass formula  new = x - V_m (V_m^T x)  is equivalent
+            # to the sequential modified Gram-Schmidt loop and replaces the
+            # O(m) Python-level iterations with two matrix multiplications.
+            new_vecs = corrections - V_m @ (V_m.T @ corrections)
 
             # Mutual MGS: orthogonalise the nstate correction columns against
             # each other so they span independent directions.  When two or more
