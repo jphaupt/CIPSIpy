@@ -824,10 +824,13 @@ def first_set_bit_pos_jax(x, norb):
 def two_set_bit_pos_jax(x, norb):
     """Positions ``(pos1, pos2)`` with ``pos1 <= pos2`` of the two lowest set bits.
 
-    JAX-native and vmappable.  When *x* has fewer than two set bits the second
-    position defaults to 0 so the caller always gets finite results; the
-    calling code is responsible for selecting the correct branch via
-    ``jnp.where``.
+    JAX-native and vmappable.  When *x* has fewer than two set bits (e.g. only
+    one set bit at position *p*), ``pos2`` falls back to 0 (the index returned by
+    ``jnp.argmax`` on an all-zeros array).  Note that 0 is a valid bit position,
+    so callers must not rely on this fallback to detect the degenerate case.
+    This behaviour is intentional: in a vmapped ``jnp.where`` context the result
+    of the "wrong branch" is always masked out, so a finite fallback value is
+    sufficient and no special-casing is needed.
     """
     idx = jnp.arange(norb, dtype=jnp.int64)
     bits = (x.astype(jnp.int64) >> idx) & jnp.int64(1)
@@ -913,12 +916,12 @@ def precompute_connections(dets_alpha, dets_beta, norb):
     dets_alpha = jnp.asarray(dets_alpha)
     dets_beta = jnp.asarray(dets_beta)
     ndet = len(dets_alpha)
-    dummy_c = jnp.ones(ndet)
+    dummy_coeffs = jnp.ones(ndet)
     row_list: list = []
     col_list: list = []
 
     # Alpha-major sort: beta singles/doubles + opposite-spin doubles.
-    _, s_da, s_db, s_idx_jax = sort_wavefunction_jax(dummy_c, dets_alpha, dets_beta, norb)
+    _, s_da, s_db, s_idx_jax = sort_wavefunction_jax(dummy_coeffs, dets_alpha, dets_beta, norb)
     s_idx = s_idx_jax.tolist()
     A_alpha = construct_A(s_da)
 
@@ -931,7 +934,7 @@ def precompute_connections(dets_alpha, dets_beta, norb):
         col_list.append(s_idx[j])
 
     # Beta-major sort: alpha singles/doubles.
-    _, s_db2, s_da2, s_idx2_jax = sort_wavefunction_jax(dummy_c, dets_beta, dets_alpha, norb)
+    _, s_db2, s_da2, s_idx2_jax = sort_wavefunction_jax(dummy_coeffs, dets_beta, dets_alpha, norb)
     s_idx2 = s_idx2_jax.tolist()
     A_beta = construct_A(s_db2)
 

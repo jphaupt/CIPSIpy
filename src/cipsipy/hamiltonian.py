@@ -438,13 +438,15 @@ def _single_excitation_element_spin_jax(det_i, det_j, spectator_det, norb, h_cor
     element = h_core[i, a]
 
     # Coulomb term shared by same-spin and opposite-spin: eri[i, a, k, k]
-    # eri[i][a] selects eri[i, a, :, :] -> shape (norb, norb); diagonal gives eri[i,a,k,k].
-    coulomb_row = jnp.diag(eri[i][a])  # shape (norb,)
+    # eri[i][a] selects eri[i, :, :, :][a, :, :] = eri[i, a, :, :], shape (norb, norb);
+    # jnp.diag extracts the diagonal eri[i, a, k, k], shape (norb,).
+    coulomb_row = jnp.diag(eri[i][a])  # eri[i, a, k, k], shape (norb,)
 
     # Same-spin Coulomb-Exchange: sum_k occ_j[k] * (eri[i,a,k,k] - eri[i,k,k,a])
     # k=a excluded: occ_same uses det_j (a is occupied there) but we zero it out.
-    # eri[i][..., a] selects eri[i, :, :, a] -> shape (norb, norb); diagonal = eri[i,k,k,a].
-    exchange_row = jnp.diag(eri[i][..., a])  # shape (norb,)
+    # eri[i][..., a] selects eri[i, :, :, :][..., a] = eri[i, :, :, a], shape (norb, norb);
+    # jnp.diag extracts the diagonal eri[i, k, k, a], shape (norb,).
+    exchange_row = jnp.diag(eri[i][..., a])  # eri[i, k, k, a], shape (norb,)
     occ_same = get_occupied_indices(det_j, norb).astype(h_core.dtype)
     occ_same = occ_same.at[a].set(0.0)  # exclude k=a
     element += jnp.dot(occ_same, coulomb_row - exchange_row)
