@@ -30,6 +30,12 @@ from cipsipy.determinants import (
     get_occupied_indices,
     phase_double,
     phase_single,
+    excitation_level_jax,
+    first_set_bit_pos_jax,
+    two_set_bit_pos_jax,
+    phase_single_jax,
+    phase_double_jax,
+    precompute_connections,
 )
 
 # dataclass to generate boilerplate setters
@@ -408,3 +414,136 @@ def _double_opposite_spin_element(
     element = eri[i_alpha, a_alpha, i_beta, a_beta]
 
     return phase_alpha * phase_beta * element
+
+
+# ===========================================================================
+# JAX-native (vmappable) matrix element kernels
+# ===========================================================================
+
+def _single_excitation_element_spin_jax(det_i, det_j, spectator_det, norb, h_core, eri):
+    """Single excitation ``i -> a`` for one spin channel. JAX-native, vmappable.
+
+    Args:
+        det_i: pre-excitation determinant of the excited spin.
+        det_j: post-excitation determinant of the excited spin.
+        spectator_det: determinant of the unchanged spin.
+        norb: number of spatial orbitals (compile-time constant).
+        h_core: one-electron integrals (norb, norb).
+        eri: two-electron integrals (norb, norb, norb, norb).
+    """
+    i = first_set_bit_pos_jax(det_i & ~det_j, norb)
+    a = first_set_bit_pos_jax(det_j & ~det_i, norb)
+    phase = phase_single_jax(det_i.astype(jnp.int64), i, a, norb)
+
+    element = h_core[i, a]
+
+    # Coulomb term shared by same-spin and opposite-spin: eri[i, a, k, k]
+    # eri[i][a] selects eri[i, :, :, :][a, :, :] = eri[i, a, :, :], shape (norb, norb);
+    # jnp.diag extracts the diagonal eri[i, a, k, k], shape (norb,).
+    coulomb_row = jnp.diag(eri[i][a])  # eri[i, a, k, k], shape (norb,)
+
+    # Same-spin Coulomb-Exchange: sum_k occ_j[k] * (eri[i,a,k,k] - eri[i,k,k,a])
+    # k=a excluded: occ_same uses det_j (a is occupied there) but we zero it out.
+    # eri[i][..., a] selects eri[i, :, :, :][..., a] = eri[i, :, :, a], shape (norb, norb);
+    # jnp.diag extracts the diagonal eri[i, k, k, a], shape (norb,).
+    exchange_row = jnp.diag(eri[i][..., a])  # eri[i, k, k, a], shape (norb,)
+    occ_same = get_occupied_indices(det_j, norb).astype(h_core.dtype)
+    occ_same = occ_same.at[a].set(0.0)  # exclude k=a
+    element += jnp.dot(occ_same, coulomb_row - exchange_row)
+
+    # Opposite-spin Coulomb: sum_k occ_opp[k] * eri[i,a,k,k]
+    occ_opp = get_occupied_indices(spectator_det, norb).astype(h_core.dtype)
+    element += jnp.dot(occ_opp, coulomb_row)
+
+    return phase * element
+
+
+def _double_same_spin_element_jax(det_i, det_j, norb, h_core, eri):
+    """Double same-spin excitation ``i,j -> a,b``. JAX-native, vmappable."""
+    i, j = two_set_bit_pos_jax(det_i & ~det_j, norb)  # holes, i <= j
+    a, b = two_set_bit_pos_jax(det_j & ~det_i, norb)  # particles, a <= b
+    phase = phase_double_jax(det_i.astype(jnp.int64), i, j, a, b, norb)
+    element = eri[i][j][a, b] - eri[i][j][b, a]
+    return phase * element
+
+
+def _double_opposite_spin_element_jax(da_i, db_i, da_j, db_j, norb, h_core, eri):
+    """Double opposite-spin excitation ``(i_α->a_α) + (i_β->a_β)``. JAX-native, vmappable."""
+    i_alpha = first_set_bit_pos_jax(da_i & ~da_j, norb)
+    a_alpha = first_set_bit_pos_jax(da_j & ~da_i, norb)
+    i_beta = first_set_bit_pos_jax(db_i & ~db_j, norb)
+    a_beta = first_set_bit_pos_jax(db_j & ~db_i, norb)
+    phase_a = phase_single_jax(da_i.astype(jnp.int64), i_alpha, a_alpha, norb)
+    phase_b = phase_single_jax(db_i.astype(jnp.int64), i_beta, a_beta, norb)
+    element = eri[i_alpha][a_alpha][i_beta, a_beta]
+    return phase_a * phase_b * element
+
+
+def hamiltonian_element_batch(da_i, db_i, da_j, db_j, norb, h_core, eri):
+    """Matrix element ``<D_i|H|D_j>`` for off-diagonal pairs. JAX-native, vmappable.
+
+    Assumes ``total_excitation_level >= 1``.  All five excitation sub-types
+    (single-α, single-β, double-αα, double-ββ, double-αβ) are computed and the
+    correct value is selected via ``jnp.where`` with no Python branching, so
+    this function can be safely passed to ``jax.vmap``.
+
+    When an "irrelevant" branch fires (wrong excitation type), it produces a
+    finite ±value that is discarded by the outer ``jnp.where``, so no
+    NaN/Inf propagates.
+    """
+    exc_alpha = excitation_level_jax(da_i, da_j, norb)
+    exc_beta = excitation_level_jax(db_i, db_j, norb)
+    total_exc = exc_alpha + exc_beta
+
+    val_sing_a = _single_excitation_element_spin_jax(da_i, da_j, db_i, norb, h_core, eri)
+    val_sing_b = _single_excitation_element_spin_jax(db_i, db_j, da_i, norb, h_core, eri)
+    val_dbl_aa = _double_same_spin_element_jax(da_i, da_j, norb, h_core, eri)
+    val_dbl_bb = _double_same_spin_element_jax(db_i, db_j, norb, h_core, eri)
+    val_dbl_ab = _double_opposite_spin_element_jax(da_i, db_i, da_j, db_j, norb, h_core, eri)
+
+    return jnp.where(
+        total_exc == 1,
+        jnp.where(exc_alpha == 1, val_sing_a, val_sing_b),
+        jnp.where(
+            exc_alpha == 2, val_dbl_aa,
+            jnp.where(exc_alpha == 0, val_dbl_bb, val_dbl_ab),
+        ),
+    )
+
+
+@partial(jax.jit, static_argnums=(4,))
+def precompute_h_vals(dets_alpha, dets_beta, row_idx, col_idx, norb, h_core, eri):
+    """Compute ``H_ij`` for all precomputed connected pairs in one batched call.
+
+    Returns a ``(n_pairs,)`` float64 array.  Call this **once** before the
+    Davidson loop; the result is fixed as long as the determinant list and
+    integrals do not change.
+    """
+    dets_alpha = jnp.asarray(dets_alpha)
+    dets_beta = jnp.asarray(dets_beta)
+    da_i = dets_alpha[row_idx]
+    db_i = dets_beta[row_idx]
+    da_j = dets_alpha[col_idx]
+    db_j = dets_beta[col_idx]
+    return jax.vmap(
+        hamiltonian_element_batch,
+        in_axes=(0, 0, 0, 0, None, None, None),
+    )(da_i, db_i, da_j, db_j, norb, h_core, eri)
+
+
+@jax.jit
+def scatter_add_matvec(coeffs, diag_h, h_vals, row_idx, col_idx):
+    """Apply ``H`` to a vector using precomputed pair values.
+
+    ``(H v)_i = diag_h[i] * v[i]``
+    ``        + sum_{k: row[k]=i} h_vals[k] * v[col[k]]``
+    ``        + sum_{k: col[k]=i} h_vals[k] * v[row[k]]``
+
+    This is a single batched scatter-add; no Python loops are involved.
+    JIT-compiled for repeated use inside the Davidson inner loop.
+    """
+    ndet = coeffs.shape[0]
+    v_off = jnp.zeros(ndet, dtype=coeffs.dtype)
+    v_off = v_off.at[row_idx].add(h_vals * coeffs[col_idx])
+    v_off = v_off.at[col_idx].add(h_vals * coeffs[row_idx])
+    return diag_h * coeffs + v_off

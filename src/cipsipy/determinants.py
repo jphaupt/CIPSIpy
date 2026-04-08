@@ -793,3 +793,156 @@ class Wavefunction:
             dets_beta=self.dets_beta,
             norb=self.norb,
         )
+
+
+# ============================================================================
+# JAX-native bitwise helpers (no Python control flow; vmappable under jax.vmap)
+# ============================================================================
+
+def jax_popcount(x, norb):
+    """Count set bits in x (lowest *norb* bits only).
+
+    Works with JAX scalar integers: vmappable and JIT-compatible.
+    ``norb`` must be a concrete Python int at compile time.
+    """
+    idx = jnp.arange(norb, dtype=jnp.int64)
+    return jnp.sum((x.astype(jnp.int64) >> idx) & jnp.int64(1), dtype=jnp.int32)
+
+
+def excitation_level_jax(det_i, det_j, norb):
+    """Excitation level between two JAX-integer determinants (vmappable)."""
+    return jax_popcount(det_i ^ det_j, norb) >> jnp.int32(1)
+
+
+def first_set_bit_pos_jax(x, norb):
+    """Index of the lowest set bit in *x* (0-indexed). JAX-native, vmappable."""
+    idx = jnp.arange(norb, dtype=jnp.int64)
+    bits = (x.astype(jnp.int64) >> idx) & jnp.int64(1)
+    return jnp.argmax(bits).astype(jnp.int32)
+
+
+def two_set_bit_pos_jax(x, norb):
+    """Positions ``(pos1, pos2)`` with ``pos1 <= pos2`` of the two lowest set bits.
+
+    JAX-native and vmappable.  When *x* has fewer than two set bits (e.g. only
+    one set bit at position *p*), ``pos2`` falls back to 0 (the index returned by
+    ``jnp.argmax`` on an all-zeros array).  Note that 0 is a valid bit position,
+    so callers must not rely on this fallback to detect the degenerate case.
+    This behaviour is intentional: in a vmapped ``jnp.where`` context the result
+    of the "wrong branch" is always masked out, so a finite fallback value is
+    sufficient and no special-casing is needed.
+    """
+    idx = jnp.arange(norb, dtype=jnp.int64)
+    bits = (x.astype(jnp.int64) >> idx) & jnp.int64(1)
+    pos1 = jnp.argmax(bits).astype(jnp.int32)
+    pos2 = jnp.argmax(bits.at[pos1].set(jnp.int64(0))).astype(jnp.int32)
+    return pos1, pos2
+
+
+def phase_single_jax(det_int, i, a, norb):
+    """Fermionic phase for single excitation ``i -> a``. JAX-native, vmappable.
+
+    Assumes *i* is occupied and *a* is unoccupied in *det_int*.
+    Returns ``+1.0`` or ``-1.0`` (float64).
+    """
+    det = det_int.astype(jnp.int64)
+    lo = jnp.minimum(i, a).astype(jnp.int64)
+    hi = jnp.maximum(i, a).astype(jnp.int64)
+    one = jnp.int64(1)
+    # Bits strictly between lo and hi (exclusive on both ends):
+    #   hi_mask covers bits 0..hi-1, lo_mask covers bits 0..lo.
+    #   Their difference is bits lo+1..hi-1.
+    hi_mask = jnp.left_shift(one, hi) - one
+    lo_mask = jnp.left_shift(one, lo + one) - one
+    mask = hi_mask & ~lo_mask
+    n_between = jax_popcount(det & mask, norb)
+    return jnp.where(n_between % 2 == 0, 1.0, -1.0)
+
+
+def phase_double_jax(det_int, i, j, a, b, norb):
+    """Fermionic phase for double excitation ``i,j -> a,b``. JAX-native, vmappable.
+
+    Assumes ``i <= j`` (holes) and ``a <= b`` (particles), as returned by
+    :func:`two_set_bit_pos_jax`.  When called on an "invalid" pair (e.g. when
+    the wrong branch fires inside a ``jnp.where``), the result is ±1 with no
+    NaN/Inf, so the caller's outer mask is safe.
+    Returns ``+1.0`` or ``-1.0`` (float64).
+    """
+    det = det_int.astype(jnp.int64)
+    i64 = i.astype(jnp.int64)
+    j64 = j.astype(jnp.int64)
+    a64 = a.astype(jnp.int64)
+    b64 = b.astype(jnp.int64)
+    one = jnp.int64(1)
+
+    # Step 1: remove lower hole i.
+    temp_det = det & ~jnp.left_shift(one, i64)
+
+    # n_ij: electrons strictly between i and j in original det.
+    hi_ij = jnp.left_shift(one, j64) - one
+    lo_ij = jnp.left_shift(one, i64 + one) - one
+    n_ij = jax_popcount(det & (hi_ij & ~lo_ij), norb)
+
+    # n_ja: electrons strictly between j and a in temp_det (order-agnostic).
+    lo_ja = jnp.minimum(j64, a64)
+    hi_ja = jnp.maximum(j64, a64)
+    hi_ja_mask = jnp.left_shift(one, hi_ja) - one
+    lo_ja_mask = jnp.left_shift(one, lo_ja + one) - one
+    n_ja = jax_popcount(temp_det & (hi_ja_mask & ~lo_ja_mask), norb)
+
+    # Step 2: add lower particle a.
+    temp_det2 = temp_det | jnp.left_shift(one, a64)
+
+    # n_ab: electrons strictly between a and b in temp_det2.
+    hi_ab = jnp.left_shift(one, b64) - one
+    lo_ab = jnp.left_shift(one, a64 + one) - one
+    n_ab = jax_popcount(temp_det2 & (hi_ab & ~lo_ab), norb)
+
+    total_count = n_ij + n_ja + n_ab
+    return jnp.where(total_count % 2 == 0, 1.0, -1.0)
+
+
+def precompute_connections(dets_alpha, dets_beta, norb):
+    """Collect all off-diagonal connected determinant pairs into index arrays.
+
+    Runs eagerly (outside JIT), using the existing sort/generator logic.
+    Returns ``(row_idx, col_idx)`` as JAX ``int32`` arrays of shape
+    ``(n_pairs,)`` containing original determinant indices.  Each pair
+    satisfies ``1 <= total_excitation_level <= 2`` and appears exactly once.
+
+    The returned arrays can be passed directly to :func:`precompute_h_vals` and
+    :func:`scatter_add_matvec` in ``hamiltonian.py``.
+    """
+    dets_alpha = jnp.asarray(dets_alpha)
+    dets_beta = jnp.asarray(dets_beta)
+    ndet = len(dets_alpha)
+    dummy_coeffs = jnp.ones(ndet)
+    row_list: list = []
+    col_list: list = []
+
+    # Alpha-major sort: beta singles/doubles + opposite-spin doubles.
+    _, s_da, s_db, s_idx_jax = sort_wavefunction_jax(dummy_coeffs, dets_alpha, dets_beta, norb)
+    s_idx = s_idx_jax.tolist()
+    A_alpha = construct_A(s_da)
+
+    for i, j in find_connected_internal_determinants_beta(s_da, s_db, A_alpha):
+        row_list.append(s_idx[i])
+        col_list.append(s_idx[j])
+
+    for i, j in find_connected_internal_determinants_oppositespin(s_da, s_db, A_alpha):
+        row_list.append(s_idx[i])
+        col_list.append(s_idx[j])
+
+    # Beta-major sort: alpha singles/doubles.
+    _, s_db2, s_da2, s_idx2_jax = sort_wavefunction_jax(dummy_coeffs, dets_beta, dets_alpha, norb)
+    s_idx2 = s_idx2_jax.tolist()
+    A_beta = construct_A(s_db2)
+
+    for i, j in find_connected_internal_determinants_beta(s_db2, s_da2, A_beta):
+        row_list.append(s_idx2[i])
+        col_list.append(s_idx2[j])
+
+    if not row_list:
+        return jnp.empty(0, dtype=jnp.int32), jnp.empty(0, dtype=jnp.int32)
+
+    return jnp.array(row_list, dtype=jnp.int32), jnp.array(col_list, dtype=jnp.int32)
