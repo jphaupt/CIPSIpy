@@ -125,7 +125,7 @@ class Diagonaliser:
             # O(m) Python-level iterations with two matrix multiplications.
             new_vecs = corrections - V_m @ (V_m.T @ corrections)
 
-            # Mutual MGS: orthogonalise the nstate correction columns against
+            # Mutual modified Gram-Schmidt (MGS): orthogonalise the nstate correction columns against
             # each other so they span independent directions.  When two or more
             # DPR corrections point in the same direction (common when nstate>1
             # and the residuals all lie in a single orthogonal complement
